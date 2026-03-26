@@ -1,19 +1,10 @@
-# controllers/service_controller.py
-"""
-Service Controller
-==================
-Manages service operations, connects ServiceModel with views.
-Handles validation, data transformation, and audit logging.
-"""
-
+# HotelMS/controllers/service_controller.py
 import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.service_model import ServiceModel
-from models.admin_log_model import AdminLogModel
-from controllers.auth_controller import get_auth_controller
-import json
+from utils.db_connection import get_connection
 
 
 class ServiceController:

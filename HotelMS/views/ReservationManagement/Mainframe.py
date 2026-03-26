@@ -1,30 +1,31 @@
-# MainFrame.py
 import sys
 import os
 
-# Add the project root to Python path
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+# Add the project root to Python path (go up 3 levels to reach HotelMS folder)
+# Current: HotelMS/views/ReservationManagement/Mainframe.py
+# Need to add: HotelMS/ to path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QHBoxLayout, QVBoxLayout,
-    QTabWidget, QSizePolicy, QFrame, QMessageBox
+    QTabWidget, QSizePolicy, QFrame
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QCursor, QPixmap
 
-# Import your panels
-from views.ReservationManagement.ReservationPanel import ReservationPanel
-from views.ReservationManagement.GuestPanel import GuestPanelView
-from views.ReservationManagement.ServicesPanel import ServicesPanel
-from views.ReservationManagement.RoomPanel import RoomPanel
-
-# Import database connection
+# Import from utils (now at project root)
 from utils.db_connection import connect, disconnect, get_connection
 
+# Import panels from same folder
+from ReservationPanel import ReservationPanel 
+from GuestPanel import GuestPanelView
+from ServicesPanel import ServicesPanel
+from RoomPanel import RoomPanel
 
-# Helper to load and scale an image
+
+# ── Helper to load and scale an image ───────────────────────────────────────
 def load_icon(relative_path: str, w: int, h: int) -> QPixmap:
-    base = os.path.abspath(os.path.dirname(__file__))
+    base = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
     full_path = os.path.join(base, relative_path)
     pixmap = QPixmap(full_path)
     if pixmap.isNull():
@@ -39,26 +40,23 @@ class MainFrameView(QWidget):
         super().__init__()
         self.user_role = user_role
         self.db_connection = None
-        
         self.setWindowTitle("Hotel Management System")
         self.setMinimumSize(1400, 800)
         self._build_ui()
+        self._load_icons()
         
         # Initialize database connection
         self._init_database()
         
-        # Load icons after UI is built
-        self._load_icons()
-        
-        # Initialize all panels
+        # Initialize panels
         self._init_panels()
-    
+
     def _init_database(self):
         """Initialize database connection"""
-        print("\n=== Initializing Database Connection ===")
+        print("\n=== Initializing Database ===")
         if connect():
             self.db_connection = get_connection()
-            print("✓ Database connected successfully")
+            print("✓ Database connected")
             
             # Test connection
             try:
@@ -66,23 +64,14 @@ class MainFrameView(QWidget):
                 cursor.execute("SELECT COUNT(*) as count FROM guests")
                 result = cursor.fetchone()
                 cursor.close()
-                print(f"✓ Found {result['count']} guests in database")
+                print(f"✓ Found {result['count']} guests")
             except Exception as e:
-                print(f"Warning: Could not query guests table: {e}")
+                print(f"Warning: Could not query guests: {e}")
         else:
-            print("✗ Failed to connect to database")
-            QMessageBox.warning(
-                self, 
-                "Database Connection Failed",
-                "Could not connect to the database. Some features may not work properly."
-            )
-    
-    def _load_icons(self):
-        """Load icons for the header"""
-        self.logo_label.setPixmap(load_icon("resources/admin_logo.jpg", 68, 68))
-    
+            print("✗ Database connection failed")
+
     def _init_panels(self):
-        """Initialize all panel views"""
+        """Initialize all panel views and add them to tabs"""
         try:
             print("\n=== Initializing Panels ===")
             
@@ -100,16 +89,17 @@ class MainFrameView(QWidget):
             self.add_tab(self.services_panel, "SERVICES")
             self.add_tab(self.room_panel, "ROOMS")
             
-            print("✓ Panels added to tabs")
+            print("✓ All panels added to tabs")
             
         except Exception as e:
             print(f"Error initializing panels: {e}")
             import traceback
             traceback.print_exc()
-            QMessageBox.critical(self, "Initialization Error", f"Failed to load panels: {str(e)}")
-    
+
+    def _load_icons(self):
+        self.logo_label.setPixmap(load_icon("resources/admin_logo.jpg", 68, 68))
+
     def _build_ui(self):
-        """Build the main UI"""
         self.setObjectName("root")
         self.setStyleSheet("QWidget#root { background-color: #2F2038; border: none; }")
 
@@ -174,7 +164,6 @@ class MainFrameView(QWidget):
         root_layout.addWidget(body, stretch=1)
 
     def _build_header(self):
-        """Build the header section"""
         header = QWidget()
         header.setObjectName("header")
         header.setStyleSheet("background-color: #FFE0E3; border: none;")
@@ -236,7 +225,6 @@ if __name__ == "__main__":
     # Set application style
     app.setStyle('Fusion')
     
-    # Create main window
     main_window = MainFrameView(user_role="Admin")
     main_window.show()
     
