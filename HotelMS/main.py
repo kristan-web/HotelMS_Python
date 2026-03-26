@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QCursor, QPixmap
 
-# Import your panels
+# Import from your views folder
 from views.ReservationManagement.ReservationPanel import ReservationPanel
 from views.ReservationManagement.GuestPanel import GuestPanelView
 from views.ReservationManagement.ServicesPanel import ServicesPanel
@@ -86,11 +86,15 @@ class MainFrameView(QWidget):
         try:
             print("\n=== Initializing Panels ===")
             
-            # Create panel instances
+            # Pass database connection to panels that need it
             self.reservation_panel = ReservationPanel()
             self.guest_panel = GuestPanelView()
             self.services_panel = ServicesPanel()
             self.room_panel = RoomPanel()
+            
+            # Set database connection for panels that need it
+            if hasattr(self.guest_panel, 'set_db_connection'):
+                self.guest_panel.set_db_connection(self.db_connection)
             
             print("✓ All panels created successfully")
             

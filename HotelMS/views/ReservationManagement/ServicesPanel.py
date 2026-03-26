@@ -1,14 +1,20 @@
-# views/ServiceManagement/ServicesPanel.py (MODIFIED)
+# views/ReservationManagement/ServicesPanel.py
 import sys
+import os
 from datetime import datetime
+
+# Add parent directory to path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, 
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, 
     QLabel, QComboBox, QLineEdit, QPushButton, 
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QMessageBox, QFrame
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QCursor
 
+# Import controller
 from controllers.service_controller import get_service_controller
 
 
@@ -84,7 +90,7 @@ class ServicesPanel(QWidget):
         self.combo_guest = self._styled_combo(self.guests)
         lay1.addWidget(self.combo_guest)
         lay1.addWidget(self._styled_label("Service Type:"))
-        self.combo_service = self._styled_combo([])  # Will be populated
+        self.combo_service = self._styled_combo([])
         self.combo_service.currentIndexChanged.connect(self.on_service_selected)
         lay1.addWidget(self.combo_service)
         layout.addWidget(p1, stretch=1)
@@ -205,17 +211,30 @@ class ServicesPanel(QWidget):
     # --- Service Loading ---
     def load_services(self):
         """Load active services from database into dropdown."""
-        services = self.service_controller.get_all_active()
-        
-        # Clear and repopulate combo box
-        self.combo_service.clear()
-        for service in services:
-            self.combo_service.addItem(f"{service['name']} - ₱{service['price']:.2f}", service)
-        
-        # Set default service
-        if services:
-            self.combo_service.setCurrentIndex(0)
-            self.on_service_selected(0)
+        try:
+            services = self.service_controller.get_all_active()
+            
+            # Clear and repopulate combo box
+            self.combo_service.clear()
+            for service in services:
+                self.combo_service.addItem(f"{service['name']} - ₱{service['price']:.2f}", service)
+            
+            # Set default service
+            if services:
+                self.combo_service.setCurrentIndex(0)
+                self.on_service_selected(0)
+        except Exception as e:
+            print(f"Error loading services: {e}")
+            # Fallback to dummy data
+            dummy_services = [
+                {"id": 1, "name": "Spa Massage", "price": 1500, "duration": 60},
+                {"id": 2, "name": "Gym Session", "price": 500, "duration": 120},
+            ]
+            for service in dummy_services:
+                self.combo_service.addItem(f"{service['name']} - ₱{service['price']:.2f}", service)
+            if dummy_services:
+                self.combo_service.setCurrentIndex(0)
+                self.on_service_selected(0)
     
     def on_service_selected(self, index):
         """Handle service selection change."""
@@ -224,16 +243,14 @@ class ServicesPanel(QWidget):
             if service_data:
                 self.current_service_price = service_data['price']
                 # Auto-fill duration from selected service
-                self.txt_duration.setText(str(service_data['duration']))
+                if 'duration' in service_data:
+                    self.txt_duration.setText(str(service_data['duration']))
                 self.update_total_price()
     
     def update_total_price(self):
         """Calculate and update total price based on service price and duration."""
         try:
             duration = int(self.txt_duration.text() or 0)
-            # Assuming price is per minute? If price is fixed per session, adjust calculation
-            # For now, assuming price is per session regardless of duration
-            # If price is per hour/minute, use: total = (self.current_service_price / 60) * duration
             total = self.current_service_price  # Fixed price per service
             self.lbl_total.setText(f"Total: ₱{total:.2f}")
         except ValueError:
