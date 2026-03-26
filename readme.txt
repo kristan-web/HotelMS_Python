@@ -2,11 +2,6 @@ Hotel Management System – Project Overview and Implementation Plan
 Project Context
 This is a Hotel Management System built with Python using PyQt6 for the graphical user interface and MySQL for data persistence. The application follows a Model-View-Controller architecture where models handle database operations, controllers contain business logic, and views manage the user interface. The system supports two user roles: Admin, who has full system access including user management and audit logs, and Staff, who handles day-to-day operations like reservations, guest management, and check-ins. The database schema includes tables for users, guests, rooms, services, reservations, reservation services, receipts, and admin logs.
 
-Current State Assessment
-The database layer is fully functional with a complete schema, working connection manager, and all models implemented. The authentication system is complete with a working AuthController that handles login, registration, and password reset with OTP verification. The service management module is fully integrated with ServiceController connected to ServiceView, AddServiceView, EditServiceView, and DeletedServicesView. The user interface for all views exists but many are not yet connected to their respective controllers.
-
-Guest management views exist but lack a GuestController to connect them to GuestModel. Room management exists only as a static panel with no controller or model integration. Reservation management has a UI panel but needs ReservationController and integration with ReservationModel. Receipt view exists but needs ReceiptController. Both admin and staff dashboards need controllers to load real statistics. AdminLogsView expects a log format that does not match what AdminLogModel currently provides. Account management views for user administration are not connected to any controller.
-
 Step-by-Step Implementation Plan
 Phase 1: Core Controllers
 First, create GuestController in controllers/guest_controller.py. This singleton class will implement get_all_active, get_all_deleted, get_by_id, and search methods that call the corresponding GuestModel methods. For create, update, soft_delete, and restore, add validation and call AdminLogModel.log to record actions with the current user from AuthController.
