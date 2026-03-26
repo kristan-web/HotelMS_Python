@@ -1,10 +1,20 @@
 """
-Database Connection Manager using PyMySQL
-Maintains the same interface as before but uses pymysql
+Database Connection Manager
+============================
+Provides a single shared MySQL connection for the entire application.
+Uses a singleton pattern so only one connection is opened at startup.
+
+Usage:
+    from utils.db_connection import get_connection
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM users")
+    rows = cursor.fetchall()
+    cursor.close()
 """
 
-import pymysql
-from pymysql import Error
+import mysql.connector
+from mysql.connector import Error
 from config.db_config import DB_CONFIG
 
 
@@ -22,20 +32,11 @@ class DatabaseConnection:
     def connect(self) -> bool:
         """Open the database connection. Returns True on success."""
         try:
-            print(f"Connecting to MySQL at {DB_CONFIG['host']}:{DB_CONFIG['port']}...")
-            self._connection = pymysql.connect(
-                host=DB_CONFIG['host'],
-                user=DB_CONFIG['user'],
-                password=DB_CONFIG['password'],
-                database=DB_CONFIG['database'],
-                port=DB_CONFIG['port'],
-                charset='utf8mb4',
-                cursorclass=pymysql.cursors.DictCursor,
-                connect_timeout=10,
-                autocommit=False
-            )
-            print(f"[DB] Connected to '{DB_CONFIG['database']}'")
-            return True
+            self._connection = mysql.connector.connect(**DB_CONFIG)
+            if self._connection.is_connected():
+                print(f"[DB] Connected to '{DB_CONFIG['database']}' "
+                      f"on {DB_CONFIG['host']}:{DB_CONFIG['port']}")
+                return True
         except Error as e:
             print(f"[DB] Connection error: {e}")
             self._connection = None
@@ -43,20 +44,24 @@ class DatabaseConnection:
 
     def disconnect(self):
         """Close the database connection."""
-        if self._connection:
+        if self._connection and self._connection.is_connected():
             self._connection.close()
             print("[DB] Connection closed.")
         self._connection = None
 
     def get_connection(self):
         """Return the active connection, reconnecting if needed."""
-        if self._connection is None:
+        try:
+            if self._connection is None or not self._connection.is_connected():
+                self.connect()
+        except Error:
             self.connect()
         return self._connection
 
     def is_connected(self) -> bool:
         """Check whether the database is reachable."""
-        return self._connection is not None
+        return (self._connection is not None and
+                self._connection.is_connected())
 
 
 # ── Module-level singleton ────────────────────────────────────────────────────

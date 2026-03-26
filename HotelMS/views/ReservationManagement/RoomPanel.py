@@ -1,10 +1,5 @@
-# views/ReservationManagement/RoomPanel.py
 import sys
 import os
-
-# Add parent directory to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QLabel, QLineEdit, QPushButton, QComboBox, 
     QHBoxLayout, QVBoxLayout, QTableWidget, QTableWidgetItem, 
@@ -12,7 +7,6 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QCursor
-
 
 class RoomPanel(QWidget):
     def __init__(self): 
@@ -36,10 +30,10 @@ class RoomPanel(QWidget):
         root_layout.setContentsMargins(10, 10, 10, 10)
         root_layout.setSpacing(10)
 
-        # ── TOP FORM PANEL ───────────────────────────────────────────────
+        # ── TOP FORM PANEL (Like Reservation Panel) ──────────────────
         root_layout.addWidget(self._build_form_panel())
         
-        # ── BOTTOM TABLE PANEL ───────────────────────────────────────────
+        # ── BOTTOM TABLE PANEL (Management Section) ──────────────────
         root_layout.addWidget(self._build_table_panel(), stretch=1)
 
     def _build_form_panel(self):
@@ -91,7 +85,7 @@ class RoomPanel(QWidget):
         lay3.addStretch()
         self.btn_add = self._action_button("Add Room", "#BE3455")
         self.btn_clear = self._action_button("Clear Form", "#412B4E")
-        self.btn_add.setFixedWidth(200)
+        self.btn_add.setFixedWidth(200) # Wider like Reservation Confirm
         self.btn_clear.setFixedWidth(200)
         
         self.btn_add.clicked.connect(self.btnAddRoomActionPerformed)
@@ -133,7 +127,7 @@ class RoomPanel(QWidget):
         tools.addStretch()
         layout.addLayout(tools)
 
-        # Table Setup
+        # Table Setup (Synced style with Reservation Table)
         self.table = QTableWidget()
         self.table.setColumnCount(7)
         self.table.setHorizontalHeaderLabels(["ID", "Room No", "Type", "Price", "Cap", "Status", "Desc"])
@@ -200,8 +194,7 @@ class RoomPanel(QWidget):
 
     def fillFormFromTable(self):
         items = self.table.selectedItems()
-        if not items: 
-            return
+        if not items: return
         r = items[0].row()
         self.room_number_field.setText(self.table.item(r, 1).text())
         self.room_type_combo.setCurrentText(self.table.item(r, 2).text())
@@ -216,9 +209,7 @@ class RoomPanel(QWidget):
         self.table.clearSelection()
 
     def btnAddRoomActionPerformed(self):
-        if not self.room_number_field.text():
-            QMessageBox.warning(self, "Warning", "Please enter a room number.")
-            return
+        if not self.room_number_field.text(): return
         new_room = {
             "id": str(len(self.static_rooms) + 1),
             "num": self.room_number_field.text(),
@@ -231,27 +222,19 @@ class RoomPanel(QWidget):
         self.static_rooms.append(new_room)
         self.load_rooms()
         self.clearForm()
-        QMessageBox.information(self, "Success", "Room added successfully!")
 
     def btnDeleteRoomActionPerformed(self):
         items = self.table.selectedItems()
-        if not items:
-            QMessageBox.warning(self, "Warning", "Please select a room to delete.")
-            return
+        if not items: return
         self.static_rooms.pop(items[0].row())
         self.load_rooms()
         self.clearForm()
-        QMessageBox.information(self, "Success", "Room deleted successfully!")
 
     def btnSetStatusActionPerformed(self):
         items = self.table.selectedItems()
-        if not items:
-            QMessageBox.warning(self, "Warning", "Please select a room to update status.")
-            return
+        if not items: return
         self.static_rooms[items[0].row()]["stat"] = self.room_status_combo.currentText()
         self.load_rooms()
-        QMessageBox.information(self, "Success", "Room status updated!")
-
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
