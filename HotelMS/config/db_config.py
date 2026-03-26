@@ -5,11 +5,10 @@ Edit the values below to match your MySQL setup.
 """
 
 DB_CONFIG = {
-    "host":     "127.0.0.1",  # Use 127.0.0.1 instead of localhost (sometimes faster)
+    "host":     "localhost",
     "port":     3306,
     "user":     "root",
-    "password": "",
+    "password": "",          # ← put your MySQL password here
     "database": "hotel_ms",
     "charset":  "utf8mb4",
-    "use_unicode": True,
 }
