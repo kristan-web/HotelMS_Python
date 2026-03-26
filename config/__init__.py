@@ -1,18 +1,28 @@
 """
-Configuration package for Hotel Management System
-Contains database connection and configuration utilities
+Config package initialization
+Exports database configuration and connection functions
 """
 
-from config.database import (
-    DatabaseConfig,
-    DatabaseConnection,
-    DatabaseQuery,
-    test_connection
+from .database import (
+    get_connection,
+    test_connection,
+    execute_query,
+    execute_query_with_commit,
+    get_one,
+    insert_one,
+    DB_CONFIG
 )
 
+# For backward compatibility with any code expecting DatabaseConfig
+DatabaseConfig = DB_CONFIG
+
 __all__ = [
-    'DatabaseConfig',
-    'DatabaseConnection',
-    'DatabaseQuery',
-    'test_connection'
+    'get_connection',
+    'test_connection', 
+    'execute_query',
+    'execute_query_with_commit',
+    'get_one',
+    'insert_one',
+    'DB_CONFIG',
+    'DatabaseConfig'  # Alias for backward compatibility
 ]

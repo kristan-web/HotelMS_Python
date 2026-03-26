@@ -29,6 +29,7 @@ class AdminLoginView(QWidget):
     login_requested = pyqtSignal(str, str)  # email, password
     staff_login_requested = pyqtSignal()
     forgot_password_requested = pyqtSignal(str)  # source = "admin"
+    register_requested = pyqtSignal()  # Add this signal for registration
     
     def __init__(self, main_window=None):
         super().__init__()
@@ -163,9 +164,13 @@ class AdminLoginView(QWidget):
         self.forgot_lbl.mousePressEvent = self.open_forgot_password
         layout.addWidget(self.forgot_lbl)
 
-        layout.addStretch()
+        layout.addSpacing(20)
 
-        # Switch to Staff
+        # Create a horizontal layout for the buttons
+        button_layout = QHBoxLayout()
+        button_layout.setSpacing(15)
+
+        # Staff button
         self.staff_btn = QPushButton("Staff")
         self.staff_btn.setFont(QFont("Segoe UI Semilight", 12, QFont.Weight.Bold))
         self.staff_btn.setFixedSize(86, 42)
@@ -180,7 +185,30 @@ class AdminLoginView(QWidget):
         """)
         self.staff_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.staff_btn.clicked.connect(self.open_staff_login)
-        layout.addWidget(self.staff_btn, alignment=Qt.AlignmentFlag.AlignRight)
+        button_layout.addWidget(self.staff_btn)
+
+        button_layout.addStretch()
+
+        # Register button
+        self.register_btn = QPushButton("Register")
+        self.register_btn.setFont(QFont("Segoe UI Semilight", 12, QFont.Weight.Bold))
+        self.register_btn.setFixedSize(86, 42)
+        self.register_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: #FFE0E3;
+                border: none;
+                border-radius: 6px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+        self.register_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.register_btn.clicked.connect(self.open_registration)
+        button_layout.addWidget(self.register_btn)
+
+        layout.addLayout(button_layout)
         layout.addSpacing(20)
 
         return panel
@@ -225,6 +253,10 @@ class AdminLoginView(QWidget):
     def open_forgot_password(self, event):
         """Emit signal to open forgot password view"""
         self.forgot_password_requested.emit("admin")
+    
+    def open_registration(self):
+        """Emit signal to open registration view"""
+        self.register_requested.emit()
 
     # ── PUBLIC GETTERS ───────────────────────────────────────────────────────
     def get_email(self) -> str:

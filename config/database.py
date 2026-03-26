@@ -1,191 +1,172 @@
 """
-Database Connection Manager for MySQL
-Handles connection pooling and query execution
+Database Configuration Module
+Handles MySQL database connections
 """
 
-import mysql.connector
-from mysql.connector import pooling, Error
-import os
-from typing import Optional, List, Dict, Any, Tuple
+import pymysql
+from pymysql import Error
+import time
 
+# Database configuration
+DB_CONFIG = {
+    'host': 'localhost',
+    'user': 'root',
+    'password': '',  # XAMPP default password is empty
+    'database': 'hotel_ms',
+    'port': 3306,
+    'connect_timeout': 5,
+    'charset': 'utf8mb4',
+    'autocommit': False
+}
 
-class DatabaseConfig:
-    """Database configuration settings"""
-    
-    # MySQL Configuration - Update these with your credentials
-    HOST = "localhost"
-    PORT = 3306
-    DATABASE = "hotel_ms"
-    USER = "root"
-    PASSWORD = ""  # Update this to your actual password
-    
-    # Connection pool settings
-    POOL_NAME = "hotel_pool"
-    POOL_SIZE = 5
-
-
-class DatabaseConnection:
+def get_connection():
     """
-    Database connection manager with connection pooling
-    Usage:
-        with DatabaseConnection() as cursor:
-            cursor.execute("SELECT * FROM services")
-            results = cursor.fetchall()
-    """
-    
-    _pool = None
-    
-    @classmethod
-    def _get_pool(cls):
-        """Get or create connection pool"""
-        if cls._pool is None:
-            try:
-                cls._pool = pooling.MySQLConnectionPool(
-                    pool_name=DatabaseConfig.POOL_NAME,
-                    pool_size=DatabaseConfig.POOL_SIZE,
-                    host=DatabaseConfig.HOST,
-                    port=DatabaseConfig.PORT,
-                    database=DatabaseConfig.DATABASE,
-                    user=DatabaseConfig.USER,
-                    password=DatabaseConfig.PASSWORD,
-                    autocommit=False
-                )
-                print(f"✅ Connection pool created for {DatabaseConfig.DATABASE}")
-            except Error as e:
-                print(f"❌ Error creating connection pool: {e}")
-                raise
-        return cls._pool
-    
-    def __init__(self):
-        """Get connection from pool"""
-        self.connection = None
-        self.cursor = None
-    
-    def __enter__(self):
-        """Enter context manager - get connection and cursor"""
-        try:
-            pool = self._get_pool()
-            self.connection = pool.get_connection()
-            self.cursor = self.connection.cursor(dictionary=True)
-            return self.cursor
-        except Error as e:
-            print(f"❌ Error getting connection: {e}")
-            raise
-    
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Exit context manager - commit/rollback and close"""
-        if exc_type is not None:
-            # Exception occurred, rollback
-            if self.connection:
-                self.connection.rollback()
-                print("🔄 Transaction rolled back")
-        else:
-            # No exception, commit
-            if self.connection:
-                self.connection.commit()
-        
-        # Close cursor and connection
-        if self.cursor:
-            self.cursor.close()
-        if self.connection:
-            self.connection.close()
-
-
-class DatabaseQuery:
-    """
-    Utility class for common database operations
-    """
-    
-    @staticmethod
-    def execute_query(query: str, params: tuple = None) -> bool:
-        """
-        Execute a query (INSERT, UPDATE, DELETE)
-        Returns True if successful, False otherwise
-        """
-        try:
-            with DatabaseConnection() as cursor:
-                cursor.execute(query, params or ())
-                return True
-        except Error as e:
-            print(f"❌ Query execution error: {e}")
-            return False
-    
-    @staticmethod
-    def fetch_one(query: str, params: tuple = None) -> Optional[Dict[str, Any]]:
-        """Fetch a single record"""
-        try:
-            with DatabaseConnection() as cursor:
-                cursor.execute(query, params or ())
-                return cursor.fetchone()
-        except Error as e:
-            print(f"❌ Fetch one error: {e}")
-            return None
-    
-    @staticmethod
-    def fetch_all(query: str, params: tuple = None) -> List[Dict[str, Any]]:
-        """Fetch all records"""
-        try:
-            with DatabaseConnection() as cursor:
-                cursor.execute(query, params or ())
-                return cursor.fetchall()
-        except Error as e:
-            print(f"❌ Fetch all error: {e}")
-            return []
-    
-    @staticmethod
-    def insert_and_get_id(query: str, params: tuple = None) -> Optional[int]:
-        """
-        Insert a record and return the auto-generated ID
-        """
-        try:
-            with DatabaseConnection() as cursor:
-                cursor.execute(query, params or ())
-                return cursor.lastrowid
-        except Error as e:
-            print(f"❌ Insert error: {e}")
-            return None
-
-
-def test_connection() -> bool:
-    """
-    Test database connection using direct connection (more reliable)
-    Returns True if connection successful
+    Create and return a database connection
+    Returns connection object or None if connection fails
     """
     try:
-        print(f"🔌 Attempting to connect to {DatabaseConfig.HOST}:{DatabaseConfig.PORT}/{DatabaseConfig.DATABASE} as {DatabaseConfig.USER}")
-        
-        # Use direct connection instead of pool for testing
-        conn = mysql.connector.connect(
-            host=DatabaseConfig.HOST,
-            port=DatabaseConfig.PORT,
-            database=DatabaseConfig.DATABASE,
-            user=DatabaseConfig.USER,
-            password=DatabaseConfig.PASSWORD,
-            connect_timeout=10
-        )
-        
-        # Test the connection with a simple query
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1")
-        cursor.fetchone()
-        cursor.close()
-        conn.close()
-        
-        print("✅ Database connection successful!")
-        return True
-        
-    except mysql.connector.Error as e:
-        print(f"❌ MySQL Error: {e}")
+        connection = pymysql.connect(**DB_CONFIG)
+        print(f"✅ Database connected successfully to {DB_CONFIG['database']}")
+        return connection
+    except Error as e:
+        print(f"❌ Database connection error: {e}")
+        return None
+    except Exception as e:
+        print(f"❌ Unexpected error: {e}")
+        return None
+
+def test_connection():
+    """
+    Test database connection
+    Returns True if connection successful, False otherwise
+    """
+    print("🔌 Attempting to connect to localhost:3306/hotel_ms as root")
+    try:
+        conn = get_connection()
+        if conn:
+            # Test query to verify database is accessible
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+            cursor.close()
+            conn.close()
+            print("✅ Database connection test successful!")
+            return True
         return False
     except Exception as e:
-        print(f"❌ Connection failed: {e}")
+        print(f"❌ Database connection test failed: {e}")
         return False
 
+def execute_query(query, params=None):
+    """
+    Execute a query and return results
+    For SELECT queries, returns fetched data
+    For INSERT/UPDATE/DELETE, returns affected rows count
+    """
+    conn = get_connection()
+    if not conn:
+        return None
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute(query, params or ())
+        
+        if query.strip().upper().startswith('SELECT'):
+            result = cursor.fetchall()
+            return result
+        else:
+            conn.commit()
+            return cursor.rowcount
+            
+    except Exception as e:
+        print(f"❌ Query execution error: {e}")
+        if conn:
+            conn.rollback()
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def execute_query_with_commit(query, params=None):
+    """
+    Execute a query with auto-commit
+    Returns affected rows count or None if error
+    """
+    conn = get_connection()
+    if not conn:
+        return None
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute(query, params or ())
+        conn.commit()
+        return cursor.rowcount
+    except Exception as e:
+        print(f"❌ Query execution error: {e}")
+        if conn:
+            conn.rollback()
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_one(query, params=None):
+    """
+    Execute a query and return one row
+    """
+    conn = get_connection()
+    if not conn:
+        return None
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute(query, params or ())
+        result = cursor.fetchone()
+        return result
+    except Exception as e:
+        print(f"❌ Query execution error: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def insert_one(table, data):
+    """
+    Insert one record into the specified table
+    data: dictionary of column:value pairs
+    Returns inserted ID or None if failed
+    """
+    columns = ', '.join(data.keys())
+    placeholders = ', '.join(['%s'] * len(data))
+    query = f"INSERT INTO {table} ({columns}) VALUES ({placeholders})"
+    
+    conn = get_connection()
+    if not conn:
+        return None
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute(query, tuple(data.values()))
+        conn.commit()
+        return cursor.lastrowid
+    except Exception as e:
+        print(f"❌ Insert error: {e}")
+        if conn:
+            conn.rollback()
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+# For backward compatibility
+def get_db_connection():
+    """Alias for get_connection()"""
+    return get_connection()
 
 if __name__ == "__main__":
-    # Test the database connection
+    # Test the connection when script is run directly
     print("Testing database connection...")
     if test_connection():
-        print("✅ Database connection successful!")
+        print("✅ Database is ready!")
     else:
-        print("❌ Database connection failed. Please check your configuration.")
+        print("❌ Database connection failed!")

@@ -4,7 +4,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 
 from PyQt6.QtWidgets import (
     QWidget, QLabel, QPushButton, QHBoxLayout, QVBoxLayout,
-    QFrame, QSizePolicy
+    QFrame, QSizePolicy, QMessageBox
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QCursor, QPixmap
@@ -44,12 +44,7 @@ class AdminDashboardView(QWidget):
 
         # Nav card icons
         self.icon_reservation.setPixmap(load_icon("resources/calendar.png", 50, 47))
-        self.icon_guest.setPixmap(load_icon("resources/amenities.png", 55, 45))
         self.icon_service.setPixmap(load_icon("resources/services.png", 55, 45))
-
-        # Bottom card icons
-        self.icon_account.setPixmap(load_icon("resources/account-management.png", 50, 50))
-        self.icon_reports.setPixmap(load_icon("resources/performance-review.png", 55, 45))
 
     def _build_ui(self):
         self.setStyleSheet("background-color: #2F2038;")
@@ -111,7 +106,7 @@ class AdminDashboardView(QWidget):
         root_layout.addWidget(sep)
         root_layout.addSpacing(10)
 
-        # ── NAV CARDS ROW (3 cards) ────────────────────────────────────────
+        # ── NAV CARDS ROW (2 cards - Reservation and Service Management) ───
         nav_row = QWidget()
         nav_row.setObjectName("nav_row")
         nav_row.setStyleSheet("QWidget#nav_row { background-color: #2F2038; border: none; }")
@@ -121,58 +116,23 @@ class AdminDashboardView(QWidget):
 
         # Icon labels for nav cards
         self.icon_reservation = QLabel()
-        self.icon_guest       = QLabel()
         self.icon_service     = QLabel()
 
-        for lbl in [self.icon_reservation, self.icon_guest, self.icon_service]:
+        for lbl in [self.icon_reservation, self.icon_service]:
             lbl.setFixedSize(55, 47)
             lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
             lbl.setStyleSheet("background: transparent;")
 
         self.reservation_card = self._build_nav_card(
             "#9CAFD6", "Reservation", "Management", self.icon_reservation)
-        self.guest_card       = self._build_nav_card(
-            "#A8B6A1", "Guest", "Management", self.icon_guest)
         self.service_card     = self._build_nav_card(
             "#E96972", "Service", "Management", self.icon_service)
 
         nav_layout.addWidget(self.reservation_card)
-        nav_layout.addWidget(self.guest_card)
         nav_layout.addWidget(self.service_card)
 
         root_layout.addWidget(nav_row)
         root_layout.addSpacing(12)
-
-        # ── BOTTOM CARDS ROW (2 cards) ─────────────────────────────────────
-        bottom_wrapper = QWidget()
-        bottom_wrapper.setObjectName("bottom_wrapper")
-        bottom_wrapper.setStyleSheet(
-            "QWidget#bottom_wrapper { background-color: #2F2038; border: 1px solid #412B4E; }")
-        bottom_layout = QHBoxLayout(bottom_wrapper)
-        bottom_layout.setContentsMargins(12, 12, 12, 12)
-        bottom_layout.setSpacing(10)
-
-        # Icon labels for bottom cards
-        self.icon_account = QLabel()
-        self.icon_reports = QLabel()
-
-        for lbl in [self.icon_account, self.icon_reports]:
-            lbl.setFixedSize(50, 50)
-            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            lbl.setStyleSheet("background: transparent;")
-
-        self.account_card = self._build_bottom_card(
-            "#B278C5", "Account Management",
-            "View Sales & Revenue Reports", "#C194D0", self.icon_account)
-        self.reports_card = self._build_bottom_card(
-            "#7F8C99", "Reports and Analytics",
-            "Configure System Preferences", "#8D99A4", self.icon_reports)
-
-        bottom_layout.addWidget(self.account_card)
-        bottom_layout.addWidget(self.reports_card)
-
-        root_layout.addWidget(bottom_wrapper)
-        root_layout.addSpacing(18)
 
         # ── FOOTER STRIP ───────────────────────────────────────────────────
         footer = QWidget()
@@ -287,7 +247,7 @@ class AdminDashboardView(QWidget):
         lbl.setStyleSheet("color: #F2F2F2; background: transparent;")
         return lbl
 
-    # ── NAV CARD (3-card row) ────────────────────────────────────────────────
+    # ── NAV CARD (2-card row) ────────────────────────────────────────────────
     def _build_nav_card(self, color: str, line1: str,
                         line2: str, icon_label: QLabel):
         card = QWidget()
@@ -320,47 +280,6 @@ class AdminDashboardView(QWidget):
 
         return card
 
-    # ── BOTTOM CARD (2-card row) ─────────────────────────────────────────────
-    def _build_bottom_card(self, color: str, title: str,
-                           subtitle: str, sub_color: str,
-                           icon_label: QLabel):
-        card = QWidget()
-        card.setStyleSheet(f"background-color: {color}; border-radius: 6px;")
-        card.setFixedHeight(100)
-        card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        card.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-
-        layout = QHBoxLayout(card)
-        layout.setContentsMargins(20, 22, 20, 22)
-        layout.setSpacing(18)
-
-        layout.addWidget(icon_label)
-
-        text_layout = QVBoxLayout()
-        text_layout.setSpacing(2)
-
-        title_lbl = QLabel(title)
-        title_lbl.setFont(QFont("Segoe UI Semilight", 13, QFont.Weight.Bold))
-        title_lbl.setStyleSheet("color: #F2F2F2; background: transparent;")
-
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setFixedHeight(1)
-        sep.setStyleSheet(f"background-color: {sub_color}; border: none;")
-
-        sub_lbl = QLabel(subtitle)
-        sub_lbl.setFont(QFont("Segoe UI Semilight", 9, QFont.Weight.Bold))
-        sub_lbl.setStyleSheet(f"color: {sub_color}; background: transparent;")
-
-        text_layout.addWidget(title_lbl)
-        text_layout.addWidget(sep)
-        text_layout.addWidget(sub_lbl)
-
-        layout.addLayout(text_layout)
-        layout.addStretch()
-
-        return card
-
     # ── PUBLIC SETTERS (called by controller) ────────────────────────────────
     def set_session_label(self, name: str):
         self.session_label.setText(f"Welcome, {name}")
@@ -376,6 +295,10 @@ class AdminDashboardView(QWidget):
 
     def set_total_reservations(self, value):
         self.total_reservations_label.setText(str(value))
+    
+    def show_message(self, title: str, message: str):
+        """Show an information message"""
+        QMessageBox.information(self, title, message)
 
 
 if __name__ == "__main__":

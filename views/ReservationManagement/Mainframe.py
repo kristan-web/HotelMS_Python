@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
     QTabWidget, QSizePolicy, QFrame, QMessageBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QFont, QCursor, QPixmap
 
 # ── FIXED IMPORTS ──────────────────────────────────────────────────────────
@@ -16,6 +17,8 @@ from views.ReservationManagement.ReservationPanel import ReservationPanel
 from views.ReservationManagement.GuestPanel import GuestPanelView
 from views.ReservationManagement.RoomPanel import RoomPanel
 from views.ReservationManagement.ServicesPanel import ServicesPanel
+
+
 
 
 # ── Helper to load and scale an image ───────────────────────────────────────
