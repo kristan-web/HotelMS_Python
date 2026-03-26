@@ -1,6 +1,5 @@
 """
-Database Connection Manager using PyMySQL
-Maintains the same interface as before but uses pymysql
+Database Connection Manager using PyMySQL (more reliable on Windows)
 """
 
 import pymysql
@@ -9,8 +8,6 @@ from config.db_config import DB_CONFIG
 
 
 class DatabaseConnection:
-    """Singleton database connection manager."""
-
     _instance = None
     _connection = None
 
@@ -20,7 +17,6 @@ class DatabaseConnection:
         return cls._instance
 
     def connect(self) -> bool:
-        """Open the database connection. Returns True on success."""
         try:
             print(f"Connecting to MySQL at {DB_CONFIG['host']}:{DB_CONFIG['port']}...")
             self._connection = pymysql.connect(
@@ -31,8 +27,7 @@ class DatabaseConnection:
                 port=DB_CONFIG['port'],
                 charset='utf8mb4',
                 cursorclass=pymysql.cursors.DictCursor,
-                connect_timeout=10,
-                autocommit=False
+                connect_timeout=10
             )
             print(f"[DB] Connected to '{DB_CONFIG['database']}'")
             return True
@@ -42,37 +37,24 @@ class DatabaseConnection:
             return False
 
     def disconnect(self):
-        """Close the database connection."""
         if self._connection:
             self._connection.close()
             print("[DB] Connection closed.")
         self._connection = None
 
     def get_connection(self):
-        """Return the active connection, reconnecting if needed."""
         if self._connection is None:
             self.connect()
         return self._connection
 
-    def is_connected(self) -> bool:
-        """Check whether the database is reachable."""
-        return self._connection is not None
 
-
-# ── Module-level singleton ────────────────────────────────────────────────────
 _db = DatabaseConnection()
 
-
 def get_connection():
-    """Return the shared MySQL connection (reconnects automatically)."""
     return _db.get_connection()
 
-
 def connect():
-    """Open the initial connection. Call once at application startup."""
     return _db.connect()
 
-
 def disconnect():
-    """Close the connection. Call once at application shutdown."""
     _db.disconnect()
