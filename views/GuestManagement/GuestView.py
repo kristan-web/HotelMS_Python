@@ -14,16 +14,22 @@ from PyQt6.QtGui import QFont, QCursor
 # Import dialog views
 from views.GuestManagement.AddGuestView import AddGuestView
 from views.GuestManagement.EditGuestView import EditGuestView
+from views.GuestManagement.DeletedGuestView import DeletedGuestsView
+
+# Import controller
+from controllers.guest_controller import get_guest_controller
 
 
 class GuestView(QWidget):
     def __init__(self, main_window=None):
         super().__init__()
         self.main_window = main_window
+        self.controller = get_guest_controller()
         self.setWindowTitle("Guest Management")
         self.setMinimumSize(900, 650)
-        self.guests_data = []
         self._build_ui()
+        self._connect_signals()
+        self.load_guests()
 
     def _build_ui(self):
         self.setObjectName("guest_root")
@@ -68,7 +74,6 @@ class GuestView(QWidget):
             QPushButton:hover { background-color: #A02848; }
         """)
         self.add_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.add_btn.clicked.connect(self.open_add_guest)
         title_row.addWidget(self.add_btn)
 
         root.addLayout(title_row)
@@ -222,12 +227,16 @@ class GuestView(QWidget):
             QPushButton:hover { background-color: #A02848; }
         """)
         self.deleted_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.deleted_btn.clicked.connect(self.view_deleted_guests)
 
         btn_row.addWidget(self.back_btn)
         btn_row.addWidget(self.deleted_btn)
         btn_row.addStretch()
         root.addLayout(btn_row)
+
+    def _connect_signals(self):
+        """Connect button signals."""
+        self.add_btn.clicked.connect(self.open_add_guest)
+        self.deleted_btn.clicked.connect(self.view_deleted_guests)
 
     # ── NAVIGATION METHODS ─────────────────────────────────────────────────
     def go_back(self):
@@ -238,8 +247,8 @@ class GuestView(QWidget):
 
     def view_deleted_guests(self):
         """Open deleted guests view"""
-        from views.GuestManagement.DeletedGuestView import DeletedGuestsView
         self.deleted_view = DeletedGuestsView(self.main_window)
+        self.deleted_view.deleted_data_changed.connect(self.load_guests)
         self.deleted_view.show()
         self.hide()
 
@@ -247,19 +256,23 @@ class GuestView(QWidget):
         """Open add guest dialog"""
         self.add_dialog = AddGuestView(self)
         if self.add_dialog.exec():
-            guest_data = {
-                'first_name': self.add_dialog.get_first_name(),
-                'last_name': self.add_dialog.get_last_name(),
-                'email': self.add_dialog.get_email(),
-                'phone': self.add_dialog.get_phone(),
-                'address': self.add_dialog.get_address()
-            }
-            if hasattr(self, 'add_requested'):
-                self.add_requested.emit(guest_data)
+            guest_data = self.add_dialog.get_guest_data()
+            success, message = self.controller.create(
+                guest_data['first_name'],
+                guest_data['last_name'],
+                guest_data['email'],
+                guest_data['phone'],
+                guest_data['address']
+            )
+            if success:
+                self.load_guests()
+                QMessageBox.information(self, "Success", message)
+            else:
+                QMessageBox.warning(self, "Error", message)
 
     def open_edit_guest(self, row):
         """Open edit guest dialog with selected guest data"""
-        guest_id = self.get_table_value(row, 0)
+        guest_id = int(self.get_table_value(row, 0))
         first_name = self.get_table_value(row, 1)
         last_name = self.get_table_value(row, 2)
         phone = self.get_table_value(row, 3)
@@ -268,13 +281,37 @@ class GuestView(QWidget):
         
         self.edit_dialog = EditGuestView(self)
         self.edit_dialog.load_guest_data(
-            guest_id, first_name, last_name, email, phone, address
+            str(guest_id), first_name, last_name, email, phone, address
         )
         
         if self.edit_dialog.exec():
             updated_data = self.edit_dialog.get_guest_data()
-            if hasattr(self, 'edit_requested'):
-                self.edit_requested.emit(updated_data)
+            success, message = self.controller.update(
+                int(updated_data['guest_id']),
+                updated_data['first_name'],
+                updated_data['last_name'],
+                updated_data['email'],
+                updated_data['phone'],
+                updated_data['address']
+            )
+            if success:
+                self.load_guests()
+                QMessageBox.information(self, "Success", message)
+            else:
+                QMessageBox.warning(self, "Error", message)
+
+    def delete_guest(self, row):
+        """Delete guest callback"""
+        guest_id = int(self.get_table_value(row, 0))
+        guest_name = f"{self.get_table_value(row, 1)} {self.get_table_value(row, 2)}"
+        
+        if self.confirm_delete(guest_name):
+            success, message = self.controller.soft_delete(guest_id)
+            if success:
+                self.load_guests()
+                QMessageBox.information(self, "Success", message)
+            else:
+                QMessageBox.warning(self, "Error", message)
 
     # ── ACTION BUTTONS PER ROW ───────────────────────────────────────────────
     def _make_row_buttons(self, row: int):
@@ -325,64 +362,36 @@ class GuestView(QWidget):
 
     def search_guests(self):
         """Filter guests based on search text"""
-        search_text = self.get_search_text().lower()
-        if hasattr(self, 'all_guests'):
-            if not search_text:
-                self.load_table(self.all_guests, self.edit_guest, self.delete_guest)
-            else:
-                filtered = [g for g in self.all_guests 
-                           if search_text in g['first_name'].lower() or 
-                              search_text in g['last_name'].lower() or
-                              search_text in g['email'].lower() or
-                              search_text in g['phone'].lower()]
-                self.load_table(filtered, self.edit_guest, self.delete_guest)
+        search_text = self.get_search_text()
+        filtered = self.controller.search(search_text)
+        self._display_users(filtered)
 
-    def edit_guest(self, row):
-        """Edit guest callback"""
-        self.open_edit_guest(row)
+    def load_guests(self):
+        """Load all active guests from database"""
+        guests = self.controller.get_all_active()
+        self._display_users(guests)
 
-    def delete_guest(self, row):
-        """Delete guest callback"""
-        guest_name = f"{self.get_table_value(row, 1)} {self.get_table_value(row, 2)}"
-        if self.confirm_delete(guest_name):
-            guest_id = self.get_table_value(row, 0)
-            if hasattr(self, 'delete_requested'):
-                self.delete_requested.emit(guest_id)
-
-    # ── PUBLIC METHODS ───────────────────────────────────────────────────────
-    def load_table(self, guests: list, on_edit=None, on_delete=None):
-        """Load guests into table"""
-        self.all_guests = guests
+    def _display_users(self, guests):
+        """Display guests in table"""
         self.table.setRowCount(0)
+        
         for g in guests:
             row = self.table.rowCount()
             self.table.insertRow(row)
             self.table.setRowHeight(row, 40)
 
-            for col, key in enumerate(
-                    ["guest_id", "first_name", "last_name", "phone", "email", "address"]):
-                item = QTableWidgetItem(str(g.get(key, "")))
-                item.setTextAlignment(
-                    Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-                self.table.setItem(row, col, item)
+            self.table.setItem(row, 0, QTableWidgetItem(str(g['id'])))
+            self.table.setItem(row, 1, QTableWidgetItem(g['first_name']))
+            self.table.setItem(row, 2, QTableWidgetItem(g['last_name']))
+            self.table.setItem(row, 3, QTableWidgetItem(g['phone']))
+            self.table.setItem(row, 4, QTableWidgetItem(g['email']))
+            self.table.setItem(row, 5, QTableWidgetItem(g['address']))
 
             # Actions column
             cell, edit_btn, del_btn = self._make_row_buttons(row)
-            if on_edit:
-                edit_btn.clicked.connect(lambda _, r=row: on_edit(r))
-            if on_delete:
-                del_btn.clicked.connect(lambda _, r=row: on_delete(r))
+            edit_btn.clicked.connect(lambda _, r=row: self.open_edit_guest(r))
+            del_btn.clicked.connect(lambda _, r=row: self.delete_guest(r))
             self.table.setCellWidget(row, 6, cell)
-
-    def load_sample_data(self):
-        """Load sample data for testing"""
-        self.guests_data = [
-            {"guest_id": "1", "first_name": "John", "last_name": "Doe",
-             "phone": "09123456789", "email": "john@example.com", "address": "123 Main St"},
-            {"guest_id": "2", "first_name": "Jane", "last_name": "Smith",
-             "phone": "09876543210", "email": "jane@example.com", "address": "456 Oak Ave"},
-        ]
-        self.load_table(self.guests_data, self.edit_guest, self.delete_guest)
 
     def get_selected_row(self) -> int:
         return self.table.currentRow()
@@ -411,6 +420,5 @@ if __name__ == "__main__":
     from PyQt6.QtWidgets import QApplication
     app = QApplication(sys.argv)
     w = GuestView()
-    w.load_sample_data()
     w.show()
     sys.exit(app.exec())

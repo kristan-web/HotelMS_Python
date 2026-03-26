@@ -8,17 +8,28 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem, QHeaderView, QAbstractItemView,
     QSizePolicy, QMessageBox, QFrame
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QCursor
+
+from controllers.guest_controller import get_guest_controller
 
 
 class DeletedGuestsView(QWidget):
+    """View for managing deleted guests with restore functionality."""
+    
+    deleted_data_changed = pyqtSignal()
+    
     def __init__(self, main_window=None):
         super().__init__()
         self.main_window = main_window
+        self.controller = get_guest_controller()
         self.setWindowTitle("Deleted Guests")
         self.setMinimumSize(900, 600)
         self._build_ui()
+        self.load_deleted_guests()
+        
+        # Connect search
+        self.search_input.textChanged.connect(self.search_guests)
 
     def _build_ui(self):
         self.setObjectName("del_guest_root")
@@ -107,7 +118,6 @@ class DeletedGuestsView(QWidget):
             }
             QLineEdit:focus { border: 1px solid #BE3455; }
         """)
-        self.search_input.textChanged.connect(self.search_guests)
         panel_layout.addWidget(self.search_input)
 
         # Table
@@ -204,95 +214,90 @@ class DeletedGuestsView(QWidget):
         btn_row.addStretch()
         root.addLayout(btn_row)
 
+    # ── DATA LOADING ───────────────────────────────────────────────────────
+    def load_deleted_guests(self):
+        """Load deleted guests from database."""
+        guests = self.controller.get_all_deleted()
+        self._populate_table(guests)
+
+    def _populate_table(self, guests: list):
+        """Populate table with deleted guest data."""
+        self.table.setRowCount(0)
+        
+        for g in guests:
+            row = self.table.rowCount()
+            self.table.insertRow(row)
+            self.table.setRowHeight(row, 40)
+            
+            self.table.setItem(row, 0, QTableWidgetItem(str(g['id'])))
+            self.table.setItem(row, 1, QTableWidgetItem(g['first_name']))
+            self.table.setItem(row, 2, QTableWidgetItem(g['last_name']))
+            self.table.setItem(row, 3, QTableWidgetItem(g['phone']))
+            self.table.setItem(row, 4, QTableWidgetItem(g['email']))
+            self.table.setItem(row, 5, QTableWidgetItem(g['address']))
+
+    def search_guests(self):
+        """Filter deleted guests based on search text."""
+        search_text = self.get_search_text()
+        if not search_text:
+            self.load_deleted_guests()
+        else:
+            all_deleted = self.controller.get_all_deleted()
+            search_lower = search_text.lower()
+            filtered = [
+                g for g in all_deleted 
+                if search_lower in g['first_name'].lower() or 
+                   search_lower in g['last_name'].lower() or
+                   search_lower in g['email'].lower()
+            ]
+            self._populate_table(filtered)
+
+    # ── RESTORE OPERATION ──────────────────────────────────────────────────
+    def restore_guest(self):
+        """Restore selected guest."""
+        row = self.get_selected_row()
+        if row >= 0:
+            guest_id = int(self.table.item(row, 0).text())
+            guest_name = f"{self.table.item(row, 1).text()} {self.table.item(row, 2).text()}"
+            
+            reply = QMessageBox.question(
+                self, "Confirm Restore",
+                f'Restore guest "{guest_name}"?',
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            
+            if reply == QMessageBox.StandardButton.Yes:
+                success, message = self.controller.restore(guest_id)
+                
+                if success:
+                    QMessageBox.information(self, "Success", message)
+                    self.load_deleted_guests()
+                    self.deleted_data_changed.emit()
+                else:
+                    QMessageBox.critical(self, "Error", message)
+        else:
+            QMessageBox.warning(self, "No Selection", "Please select a guest to restore.")
+
+    # ── NAVIGATION ─────────────────────────────────────────────────────────
     def go_back(self):
-        """Navigate back to guest management view"""
+        """Navigate back to guest management view."""
         from views.GuestManagement.GuestView import GuestView
         self.guest_view = GuestView(self.main_window)
         self.guest_view.show()
         self.close()
 
-    def restore_guest(self):
-        """Restore selected guest"""
-        row = self.get_selected_row()
-        if row >= 0:
-            if self.confirm_restore():
-                guest_data = {
-                    'guest_id': self.get_table_value(row, 0),
-                    'first_name': self.get_table_value(row, 1),
-                    'last_name': self.get_table_value(row, 2),
-                    'phone': self.get_table_value(row, 3),
-                    'email': self.get_table_value(row, 4),
-                    'address': self.get_table_value(row, 5)
-                }
-                if hasattr(self, 'restore_requested'):
-                    self.restore_requested.emit(guest_data)
-                else:
-                    self.show_message("Success", f"Guest '{guest_data['first_name']} {guest_data['last_name']}' restored successfully!")
-        else:
-            self.show_message("No Selection", "Please select a guest to restore.")
-
-    def search_guests(self):
-        """Filter guests based on search text"""
-        search_text = self.get_search_text().lower()
-        if hasattr(self, 'all_guests'):
-            if not search_text:
-                self.load_table(self.all_guests)
-            else:
-                filtered = [g for g in self.all_guests 
-                           if search_text in g['first_name'].lower() or 
-                              search_text in g['last_name'].lower() or
-                              search_text in g['email'].lower() or
-                              search_text in g['phone'].lower()]
-                self.load_table(filtered)
-
-    # ── PUBLIC METHODS ───────────────────────────────────────────────────────
-    def load_table(self, guests: list):
-        """guests: list of dicts with keys: guest_id, first_name, last_name, phone, email, address"""
-        self.all_guests = guests
-        self.table.setRowCount(0)
-        for g in guests:
-            row = self.table.rowCount()
-            self.table.insertRow(row)
-            self.table.setRowHeight(row, 40)
-            for col, key in enumerate(
-                    ["guest_id", "first_name", "last_name", "phone", "email", "address"]):
-                item = QTableWidgetItem(str(g.get(key, "")))
-                item.setTextAlignment(
-                    Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-                self.table.setItem(row, col, item)
-
+    # ── HELPERS ────────────────────────────────────────────────────────────
     def get_selected_row(self) -> int:
         return self.table.currentRow()
 
-    def get_table_value(self, row: int, col: int) -> str:
-        item = self.table.item(row, col)
-        return item.text() if item else ""
-
     def get_search_text(self) -> str:
         return self.search_input.text().strip()
-
-    def confirm_restore(self) -> bool:
-        reply = QMessageBox.question(
-            self, "Confirm Restore",
-            "Are you sure you want to restore this guest?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No
-        )
-        return reply == QMessageBox.StandardButton.Yes
-
-    def show_message(self, title: str, message: str):
-        QMessageBox.information(self, title, message)
 
 
 if __name__ == "__main__":
     from PyQt6.QtWidgets import QApplication
     app = QApplication(sys.argv)
     w = DeletedGuestsView()
-    w.load_table([
-        {"guest_id": "1", "first_name": "John", "last_name": "Doe",
-         "phone": "09123456789", "email": "john@example.com", "address": "123 Main St"},
-        {"guest_id": "2", "first_name": "Jane", "last_name": "Smith",
-         "phone": "09876543210", "email": "jane@example.com", "address": "456 Oak Ave"},
-    ])
     w.show()
     sys.exit(app.exec())

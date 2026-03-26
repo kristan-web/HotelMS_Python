@@ -1,5 +1,7 @@
 import sys
 import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QLabel, QLineEdit, QPushButton, QComboBox, 
     QHBoxLayout, QVBoxLayout, QTableWidget, QTableWidgetItem, 
@@ -8,18 +10,16 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QCursor
 
+from controllers.room_controller import get_room_controller
+
+
 class RoomPanel(QWidget):
     def __init__(self): 
         super().__init__()
+        self.controller = get_room_controller()
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        
-        # Static data
-        self.static_rooms = [
-            {"id": "1", "num": "101", "type": "SINGLE", "price": "1500.00", "cap": "1", "stat": "AVAILABLE", "desc": "Standard Single"},
-            {"id": "2", "num": "202", "type": "DELUXE", "price": "3500.00", "cap": "2", "stat": "OCCUPIED", "desc": "Seaside View"},
-        ]
-        
         self._build_ui()
+        self._connect_signals()
         self.load_rooms()
 
     def _build_ui(self):
@@ -85,11 +85,8 @@ class RoomPanel(QWidget):
         lay3.addStretch()
         self.btn_add = self._action_button("Add Room", "#BE3455")
         self.btn_clear = self._action_button("Clear Form", "#412B4E")
-        self.btn_add.setFixedWidth(200) # Wider like Reservation Confirm
+        self.btn_add.setFixedWidth(200)
         self.btn_clear.setFixedWidth(200)
-        
-        self.btn_add.clicked.connect(self.btnAddRoomActionPerformed)
-        self.btn_clear.clicked.connect(self.clearForm)
         
         lay3.addWidget(self.btn_add, alignment=Qt.AlignmentFlag.AlignCenter)
         lay3.addWidget(self.btn_clear, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -116,10 +113,6 @@ class RoomPanel(QWidget):
         self.btn_set = self._action_button("Set Status", "#412B4E")
         self.btn_del = self._action_button("Delete Room", "#BE3455")
         self.btn_refresh = self._action_button("Refresh", "#412B4E")
-        
-        self.btn_set.clicked.connect(self.btnSetStatusActionPerformed)
-        self.btn_del.clicked.connect(self.btnDeleteRoomActionPerformed)
-        self.btn_refresh.clicked.connect(self.load_rooms)
 
         tools.addWidget(self.btn_set)
         tools.addWidget(self.btn_del)
@@ -127,7 +120,7 @@ class RoomPanel(QWidget):
         tools.addStretch()
         layout.addLayout(tools)
 
-        # Table Setup (Synced style with Reservation Table)
+        # Table Setup
         self.table = QTableWidget()
         self.table.setColumnCount(7)
         self.table.setHorizontalHeaderLabels(["ID", "Room No", "Type", "Price", "Cap", "Status", "Desc"])
@@ -135,21 +128,38 @@ class RoomPanel(QWidget):
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setStyleSheet("""
             QTableWidget {
-                background-color: #3D2850; color: #F2F2F2;
-                gridline-color: #412B4E; border-radius: 4px;
+                background-color: #3D2850;
+                color: #F2F2F2;
+                gridline-color: #412B4E;
+                border-radius: 4px;
             }
             QHeaderView::section {
-                background-color: #412B4E; color: #FFE0E3;
-                font-weight: bold; border: none; padding: 6px;
+                background-color: #412B4E;
+                color: #FFE0E3;
+                font-weight: bold;
+                border: none;
+                padding: 6px;
             }
-            QTableWidget::item:selected { background-color: #BE3455; color: #FFE0E3; }
+            QTableWidget::item:selected {
+                background-color: #BE3455;
+                color: #FFE0E3;
+            }
         """)
-        self.table.itemSelectionChanged.connect(self.fillFormFromTable)
         layout.addWidget(self.table)
 
         return table_outer
+
+    def _connect_signals(self):
+        """Connect button signals to controller methods."""
+        self.btn_add.clicked.connect(self.add_room)
+        self.btn_clear.clicked.connect(self.clear_form)
+        self.btn_set.clicked.connect(self.update_status)
+        self.btn_del.clicked.connect(self.delete_room)
+        self.btn_refresh.clicked.connect(self.load_rooms)
+        self.table.itemSelectionChanged.connect(self.fill_form_from_table)
 
     # --- UI Helpers ---
     def _create_sub_panel(self):
@@ -176,65 +186,152 @@ class RoomPanel(QWidget):
         b.setFont(QFont("Segoe UI Semilight", 10, QFont.Weight.Bold))
         b.setStyleSheet(f"""
             QPushButton {{
-                background-color: {bg_color}; color: #FFE0E3;
-                border: none; border-radius: 6px;
+                background-color: {bg_color};
+                color: #FFE0E3;
+                border: none;
+                border-radius: 6px;
             }}
             QPushButton:hover {{ background-color: #5A3D6B; }}
         """)
         return b
 
-    # --- Logic ---
+    # --- Validation ---
+    def _validate_inputs(self) -> tuple:
+        """Validate form inputs. Returns (is_valid, error_message)."""
+        room_number = self.room_number_field.text().strip()
+        if not room_number:
+            return (False, "Room number is required.")
+        
+        try:
+            price = float(self.price_field.text().strip())
+            if price <= 0:
+                return (False, "Price must be greater than 0.")
+        except ValueError:
+            return (False, "Invalid price format. Please enter a number.")
+        
+        try:
+            capacity = int(self.capacity_field.text().strip())
+            if capacity < 1:
+                return (False, "Capacity must be at least 1.")
+        except ValueError:
+            return (False, "Invalid capacity format. Please enter a number.")
+        
+        return (True, "")
+
+    # --- CRUD Operations ---
     def load_rooms(self):
+        """Load all rooms from database."""
+        rooms = self.controller.get_all()
+        self._populate_table(rooms)
+
+    def _populate_table(self, rooms):
+        """Populate table with room data."""
         self.table.setRowCount(0)
-        for r in self.static_rooms:
+        for r in rooms:
             row = self.table.rowCount()
             self.table.insertRow(row)
-            for i, key in enumerate(["id", "num", "type", "price", "cap", "stat", "desc"]):
-                self.table.setItem(row, i, QTableWidgetItem(str(r[key])))
+            self.table.setItem(row, 0, QTableWidgetItem(str(r['id'])))
+            self.table.setItem(row, 1, QTableWidgetItem(r['room_number']))
+            self.table.setItem(row, 2, QTableWidgetItem(r['room_type']))
+            self.table.setItem(row, 3, QTableWidgetItem(f"{r['price']:.2f}"))
+            self.table.setItem(row, 4, QTableWidgetItem(str(r['capacity'])))
+            self.table.setItem(row, 5, QTableWidgetItem(r['status']))
+            self.table.setItem(row, 6, QTableWidgetItem(r.get('description', '')))
 
-    def fillFormFromTable(self):
+    def fill_form_from_table(self):
+        """Populate form fields with selected row data."""
         items = self.table.selectedItems()
-        if not items: return
-        r = items[0].row()
-        self.room_number_field.setText(self.table.item(r, 1).text())
-        self.room_type_combo.setCurrentText(self.table.item(r, 2).text())
-        self.price_field.setText(self.table.item(r, 3).text())
-        self.capacity_field.setText(self.table.item(r, 4).text())
-        self.room_status_combo.setCurrentText(self.table.item(r, 5).text())
-        self.description_field.setText(self.table.item(r, 6).text())
+        if not items:
+            return
+        row = items[0].row()
+        self.room_number_field.setText(self.table.item(row, 1).text())
+        self.room_type_combo.setCurrentText(self.table.item(row, 2).text())
+        self.price_field.setText(self.table.item(row, 3).text())
+        self.capacity_field.setText(self.table.item(row, 4).text())
+        self.room_status_combo.setCurrentText(self.table.item(row, 5).text())
+        self.description_field.setText(self.table.item(row, 6).text())
 
-    def clearForm(self):
-        for f in [self.room_number_field, self.price_field, self.capacity_field, self.description_field]: 
-            f.clear()
+    def clear_form(self):
+        """Clear all form fields."""
+        self.room_number_field.clear()
+        self.price_field.clear()
+        self.capacity_field.clear()
+        self.description_field.clear()
+        self.room_type_combo.setCurrentIndex(0)
+        self.room_status_combo.setCurrentIndex(0)
         self.table.clearSelection()
 
-    def btnAddRoomActionPerformed(self):
-        if not self.room_number_field.text(): return
-        new_room = {
-            "id": str(len(self.static_rooms) + 1),
-            "num": self.room_number_field.text(),
-            "type": self.room_type_combo.currentText(),
-            "price": self.price_field.text(),
-            "cap": self.capacity_field.text(),
-            "stat": "AVAILABLE",
-            "desc": self.description_field.text()
-        }
-        self.static_rooms.append(new_room)
-        self.load_rooms()
-        self.clearForm()
+    def add_room(self):
+        """Add a new room."""
+        is_valid, error_msg = self._validate_inputs()
+        if not is_valid:
+            QMessageBox.warning(self, "Validation Error", error_msg)
+            return
+        
+        room_number = self.room_number_field.text().strip()
+        room_type = self.room_type_combo.currentText()
+        price = float(self.price_field.text().strip())
+        capacity = int(self.capacity_field.text().strip())
+        description = self.description_field.text().strip()
+        
+        success, message = self.controller.create(
+            room_number, room_type, price, capacity, description
+        )
+        
+        if success:
+            QMessageBox.information(self, "Success", message)
+            self.load_rooms()
+            self.clear_form()
+        else:
+            QMessageBox.critical(self, "Error", message)
 
-    def btnDeleteRoomActionPerformed(self):
+    def update_status(self):
+        """Update status of selected room."""
         items = self.table.selectedItems()
-        if not items: return
-        self.static_rooms.pop(items[0].row())
-        self.load_rooms()
-        self.clearForm()
+        if not items:
+            QMessageBox.warning(self, "No Selection", "Please select a room to update.")
+            return
+        
+        row = items[0].row()
+        room_id = int(self.table.item(row, 0).text())
+        new_status = self.room_status_combo.currentText()
+        
+        success, message = self.controller.update_status(room_id, new_status)
+        
+        if success:
+            QMessageBox.information(self, "Success", message)
+            self.load_rooms()
+        else:
+            QMessageBox.critical(self, "Error", message)
 
-    def btnSetStatusActionPerformed(self):
+    def delete_room(self):
+        """Delete selected room."""
         items = self.table.selectedItems()
-        if not items: return
-        self.static_rooms[items[0].row()]["stat"] = self.room_status_combo.currentText()
-        self.load_rooms()
+        if not items:
+            QMessageBox.warning(self, "No Selection", "Please select a room to delete.")
+            return
+        
+        row = items[0].row()
+        room_id = int(self.table.item(row, 0).text())
+        room_number = self.table.item(row, 1).text()
+        
+        reply = QMessageBox.question(
+            self, "Confirm Delete",
+            f'Delete room "{room_number}"?',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            success, message = self.controller.delete(room_id)
+            
+            if success:
+                QMessageBox.information(self, "Success", message)
+                self.load_rooms()
+                self.clear_form()
+            else:
+                QMessageBox.critical(self, "Error", message)
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
