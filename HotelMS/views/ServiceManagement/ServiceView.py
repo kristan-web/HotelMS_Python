@@ -1,5 +1,3 @@
-# views/ServiceManagement/ServiceView.py (FULLY INTEGRATED)
-
 import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -12,24 +10,18 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QCursor
+
 from views.ServiceManagement.AddServiceView import AddServiceView
 from views.ServiceManagement.EditServiceView import EditServiceView
-from controllers.service_controller import get_service_controller
 
 
 class ServiceView(QWidget):
     def __init__(self, main_window=None):
         super().__init__()
         self.main_window = main_window
-        self.controller = get_service_controller()
         self.setWindowTitle("Service Management")
         self.setMinimumSize(900, 650)
         self._build_ui()
-        self._connect_signals()
-        self.load_services()
-        
-        # Connect search
-        self.search_input.textChanged.connect(self.on_search)
 
     def _build_ui(self):
         self.setObjectName("svc_root")
@@ -74,6 +66,7 @@ class ServiceView(QWidget):
             QPushButton:hover { background-color: #A02848; }
         """)
         self.add_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.add_btn.clicked.connect(self.open_add_service)
         title_row.addWidget(self.add_btn)
 
         root.addLayout(title_row)
@@ -129,7 +122,7 @@ class ServiceView(QWidget):
         self.table.setColumnHidden(0, True)
         self.table.setFont(QFont("Segoe UI Semilight", 11)) 
         self.table.verticalHeader().setDefaultSectionSize(40)
-        self.table.verticalHeader().setVisible(True)
+        self.table.verticalHeader().setVisible(True)  # Show row numbers
         self.table.verticalHeader().setStyleSheet("background-color: #412B4E;")
         self.table.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectRows)
@@ -224,16 +217,12 @@ class ServiceView(QWidget):
             QPushButton:hover { background-color: #A02848; }
         """)
         self.deleted_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.deleted_btn.clicked.connect(self.view_deleted_services)
 
         btn_row.addWidget(self.back_btn)
         btn_row.addWidget(self.deleted_btn)
         btn_row.addStretch()
         root.addLayout(btn_row)
-
-    def _connect_signals(self):
-        """Connect button signals."""
-        self.add_btn.clicked.connect(self.open_add_service)
-        self.deleted_btn.clicked.connect(self.view_deleted_services)
 
     def go_back(self):
         if self.main_window:
@@ -243,56 +232,22 @@ class ServiceView(QWidget):
     def view_deleted_services(self):
         from views.ServiceManagement.DeletedServicesView import DeletedServicesView
         self.deleted_view = DeletedServicesView(self.main_window)
-        self.deleted_view.deleted_data_changed.connect(self.refresh_table)
         self.deleted_view.show()
         self.hide()
 
     def open_add_service(self):
         self.add_dialog = AddServiceView(self)
-        self.add_dialog.service_added.connect(self.on_service_added)
-        self.add_dialog.exec()
-
-    def on_service_added(self, service_data):
-        """Handle service added signal."""
-        self.refresh_table()
-        QMessageBox.information(self, "Success", f"Service '{service_data['name']}' added successfully!")
-
-    def open_edit_service(self, row):
-        """Open edit dialog for selected service."""
-        service_id = int(self.get_table_value(row, 0))
-        service_name = self.get_table_value(row, 1)
-        service_price = self.get_table_value(row, 2).replace("₱", "").strip()
-        service_duration = self.get_table_value(row, 3)
-        service_status = self.get_table_value(row, 4)
-        
-        self.edit_dialog = EditServiceView(self)
-        self.edit_dialog.load_service_data(
-            service_id, service_name, service_price, 
-            service_duration, service_status
-        )
-        self.edit_dialog.service_updated.connect(self.on_service_updated)
-        self.edit_dialog.exec()
-
-    def on_service_updated(self, updated_data):
-        """Handle service updated signal."""
-        self.refresh_table()
-        QMessageBox.information(self, "Success", f"Service '{updated_data['name']}' updated successfully!")
-
-    def delete_service(self, row):
-        """Delete selected service with confirmation."""
-        service_id = int(self.get_table_value(row, 0))
-        service_name = self.get_table_value(row, 1)
-        
-        if self.confirm_delete(service_name):
-            success, message = self.controller.soft_delete(service_id)
-            if success:
-                QMessageBox.information(self, "Success", message)
-                self.refresh_table()
-            else:
-                QMessageBox.critical(self, "Error", message)
+        if self.add_dialog.exec():
+            service_data = {
+                'name': self.add_dialog.get_service_name(),
+                'price': self.add_dialog.get_service_price(),
+                'duration': self.add_dialog.get_service_duration(),
+                'status': self.add_dialog.get_service_status()
+            }
+            if hasattr(self, 'add_requested'):
+                self.add_requested.emit(service_data)
 
     def _make_row_buttons(self, row: int):
-        """Create action buttons for table row."""
         cell_widget = QWidget()
         cell_widget.setObjectName("row_btn_widget")
         cell_widget.setStyleSheet(
@@ -332,69 +287,58 @@ class ServiceView(QWidget):
             QPushButton:hover { background-color: #A02848; }
         """)
         del_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        del_btn.clicked.connect(lambda _, r=row: self.delete_service(r))
 
         layout.addWidget(edit_btn)
         layout.addWidget(del_btn)
 
-        return cell_widget
+        return cell_widget, edit_btn, del_btn
 
-    def load_services(self):
-        """Load active services from database."""
-        services = self.controller.get_all_active()
-        self._populate_table(services)
-
-    def refresh_table(self):
-        """Refresh the table with latest data."""
-        current_search = self.get_search_text()
-        if current_search:
-            self.on_search(current_search)
-        else:
-            self.load_services()
-
-    def _populate_table(self, services: list):
-        """Populate table with service data."""
-        self.table.setRowCount(0)
+    def open_edit_service(self, row):
+        service_id = self.get_table_value(row, 0)
+        service_name = self.get_table_value(row, 1)
+        service_price = self.get_table_value(row, 2)
+        service_duration = self.get_table_value(row, 3)
+        service_status = self.get_table_value(row, 4)
         
-        for service in services:
+        self.edit_dialog = EditServiceView(self)
+        self.edit_dialog.load_service_data(
+            service_id, service_name, service_price, 
+            service_duration, service_status
+        )
+        
+        if self.edit_dialog.exec():
+            updated_data = {
+                'id': self.edit_dialog.get_service_id(),
+                'name': self.edit_dialog.get_service_name(),
+                'price': self.edit_dialog.get_service_price(),
+                'duration': self.edit_dialog.get_service_duration(),
+                'status': self.edit_dialog.get_service_status()
+            }
+            if hasattr(self, 'edit_requested'):
+                self.edit_requested.emit(updated_data)
+
+    def load_table(self, services: list,
+                   on_edit=None, on_delete=None):
+        self.table.setRowCount(0)
+        for s in services:
             row = self.table.rowCount()
             self.table.insertRow(row)
             self.table.setRowHeight(row, 40)
-            
-            # Service ID (hidden)
-            self.table.setItem(row, 0, QTableWidgetItem(str(service['id'])))
-            
-            # Service Name
-            name_item = QTableWidgetItem(service['name'])
-            name_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-            self.table.setItem(row, 1, name_item)
-            
-            # Price
-            price_item = QTableWidgetItem(f"₱{service['price']:.2f}")
-            price_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-            self.table.setItem(row, 2, price_item)
-            
-            # Duration
-            dur_item = QTableWidgetItem(str(service['duration']))
-            dur_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-            self.table.setItem(row, 3, dur_item)
-            
-            # Status
-            status_item = QTableWidgetItem(service['status'])
-            status_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-            self.table.setItem(row, 4, status_item)
-            
-            # Actions buttons
-            cell_widget = self._make_row_buttons(row)
-            self.table.setCellWidget(row, 5, cell_widget)
 
-    def on_search(self, text: str):
-        """Filter services based on search text."""
-        if not text:
-            self.load_services()
-        else:
-            filtered = self.controller.search(text)
-            self._populate_table(filtered)
+            for col, key in enumerate(
+                    ["id", "name", "price", "duration", "status"]):
+                item = QTableWidgetItem(str(s.get(key, "")))
+                item.setTextAlignment(
+                    Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+                self.table.setItem(row, col, item)
+
+            cell, edit_btn, del_btn = self._make_row_buttons(row)
+            if on_edit:
+                edit_btn.clicked.disconnect()
+                edit_btn.clicked.connect(lambda _, r=row: on_edit(r))
+            if on_delete:
+                del_btn.clicked.connect(lambda _, r=row: on_delete(r))
+            self.table.setCellWidget(row, 5, cell)
 
     def get_selected_row(self) -> int:
         return self.table.currentRow()
@@ -423,5 +367,13 @@ if __name__ == "__main__":
     from PyQt6.QtWidgets import QApplication
     app = QApplication(sys.argv)
     w = ServiceView()
+    w.load_table([
+        {"id": 1, "name": "Massage Therapy", "price": "₱500",
+         "duration": "60", "status": "Active"},
+        {"id": 2, "name": "Facial Treatment", "price": "₱300",
+         "duration": "45", "status": "Active"},
+        {"id": 3, "name": "Body Scrub", "price": "₱400",
+         "duration": "50", "status": "Inactive"},
+    ])
     w.show()
     sys.exit(app.exec())
