@@ -31,8 +31,10 @@ class RoomPanel(QWidget):
         root_layout.setSpacing(10)
 
         # ── TOP FORM PANEL (Like Reservation Panel) ──────────────────
+        # ── TOP FORM PANEL (Like Reservation Panel) ──────────────────
         root_layout.addWidget(self._build_form_panel())
         
+        # ── BOTTOM TABLE PANEL (Management Section) ──────────────────
         # ── BOTTOM TABLE PANEL (Management Section) ──────────────────
         root_layout.addWidget(self._build_table_panel(), stretch=1)
 
@@ -85,7 +87,7 @@ class RoomPanel(QWidget):
         lay3.addStretch()
         self.btn_add = self._action_button("Add Room", "#BE3455")
         self.btn_clear = self._action_button("Clear Form", "#412B4E")
-        self.btn_add.setFixedWidth(200)
+        self.btn_add.setFixedWidth(200) # Wider like Reservation Confirm
         self.btn_clear.setFixedWidth(200)
         
         lay3.addWidget(self.btn_add, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -120,7 +122,7 @@ class RoomPanel(QWidget):
         tools.addStretch()
         layout.addLayout(tools)
 
-        # Table Setup
+        # Table Setup (Synced style with Reservation Table)
         self.table = QTableWidget()
         self.table.setColumnCount(7)
         self.table.setHorizontalHeaderLabels(["ID", "Room No", "Type", "Price", "Cap", "Status", "Desc"])
