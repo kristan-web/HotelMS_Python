@@ -11,6 +11,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QCursor, QColor, QBrush
 
+from controllers.user_controller import get_user_controller
+
 
 class DeletedUserView(QWidget):
     """
@@ -18,17 +20,18 @@ class DeletedUserView(QWidget):
     Displays deleted user accounts with option to restore.
     """
     
-    # Signal to navigate back
-    back_requested = pyqtSignal()
-    restore_requested = pyqtSignal(dict)
+    # Signal to notify parent when data changes
+    deleted_data_changed = pyqtSignal()
     
     def __init__(self, main_window=None):
         super().__init__()
         self.main_window = main_window
+        self.controller = get_user_controller()
         self.setWindowTitle("Deleted Users")
         self.setMinimumSize(900, 600)
-        self.all_users = []  # Store all users for filtering
         self._build_ui()
+        self._connect_signals()
+        self.load_deleted_users()
         
     def _build_ui(self):
         self.setObjectName("del_user_root")
@@ -79,7 +82,6 @@ class DeletedUserView(QWidget):
             }
         """)
         self.restore_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.restore_btn.clicked.connect(self.restore_user)
         title_row.addWidget(self.restore_btn)
         
         root.addLayout(title_row)
@@ -216,28 +218,34 @@ class DeletedUserView(QWidget):
             }
         """)
         self.back_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.back_btn.clicked.connect(self.go_back)
         
         btn_row.addWidget(self.back_btn)
         btn_row.addStretch()
         root.addLayout(btn_row)
     
+    def _connect_signals(self):
+        """Connect button signals."""
+        self.restore_btn.clicked.connect(self.restore_user)
+        self.back_btn.clicked.connect(self.go_back)
+    
+    def load_deleted_users(self):
+        """Load deleted users from database."""
+        users = self.controller.get_all_deleted()
+        self._display_users(users)
+    
     def search_users(self):
         """Filter users based on search text"""
         search_text = self.get_search_text().lower()
         if not search_text:
-            self._load_filtered_users()
+            self.load_deleted_users()
         else:
-            filtered = [u for u in self.all_users 
-                       if search_text in u.get('first_name', '').lower() or 
-                          search_text in u.get('last_name', '').lower() or
-                          search_text in u.get('email', '').lower() or
-                          search_text in u.get('phone', '').lower()]
+            all_deleted = self.controller.get_all_deleted()
+            filtered = [u for u in all_deleted 
+                       if search_text in u['first_name'].lower() or 
+                          search_text in u['last_name'].lower() or
+                          search_text in u['email'].lower() or
+                          search_text in u['phone'].lower()]
             self._display_users(filtered)
-    
-    def _load_filtered_users(self):
-        """Load filtered users"""
-        self._display_users(self.all_users)
     
     def _display_users(self, users):
         """Display users in table"""
@@ -248,45 +256,40 @@ class DeletedUserView(QWidget):
             self.table.insertRow(row)
             self.table.setRowHeight(row, 40)
             
-            self.table.setItem(row, 0, QTableWidgetItem(str(u.get('user_id', ''))))
-            self.table.setItem(row, 1, QTableWidgetItem(str(u.get('first_name', ''))))
-            self.table.setItem(row, 2, QTableWidgetItem(str(u.get('last_name', ''))))
-            self.table.setItem(row, 3, QTableWidgetItem(str(u.get('phone', ''))))
-            self.table.setItem(row, 4, QTableWidgetItem(str(u.get('email', ''))))
+            self.table.setItem(row, 0, QTableWidgetItem(str(u['user_id'])))
+            self.table.setItem(row, 1, QTableWidgetItem(u['first_name']))
+            self.table.setItem(row, 2, QTableWidgetItem(u['last_name']))
+            self.table.setItem(row, 3, QTableWidgetItem(u['phone']))
+            self.table.setItem(row, 4, QTableWidgetItem(u['email']))
             
             # Role item with color
-            role = str(u.get('role', ''))
+            role = u['role']
             role_item = QTableWidgetItem(role)
-            
-            # Color role based on type
             if role == "Admin":
-                role_item.setForeground(QBrush(QColor(200, 40, 40)))  # Red
+                role_item.setForeground(QBrush(QColor(200, 40, 40)))
                 role_item.setFont(QFont("Segoe UI Semilight", 11, QFont.Weight.Bold))
             elif role == "Staff":
-                role_item.setForeground(QBrush(QColor(30, 100, 200)))  # Blue
+                role_item.setForeground(QBrush(QColor(30, 100, 200)))
                 role_item.setFont(QFont("Segoe UI Semilight", 11, QFont.Weight.Bold))
-            
             self.table.setItem(row, 5, role_item)
     
     def restore_user(self):
         """Restore selected user"""
         row = self.get_selected_row()
         if row >= 0:
+            user_id = int(self.get_table_value(row, 0))
             first_name = self.get_table_value(row, 1)
             last_name = self.get_table_value(row, 2)
             user_name = f"{first_name} {last_name}"
             
             if self.confirm_restore(user_name):
-                user_data = {
-                    'user_id': self.get_table_value(row, 0),
-                    'first_name': first_name,
-                    'last_name': last_name,
-                    'phone': self.get_table_value(row, 3),
-                    'email': self.get_table_value(row, 4),
-                    'role': self.get_table_value(row, 5)
-                }
-                self.restore_requested.emit(user_data)
-                self.show_message("Success", f"User '{user_name}' restored successfully!")
+                success, message = self.controller.restore(user_id)
+                if success:
+                    self.load_deleted_users()
+                    self.deleted_data_changed.emit()
+                    self.show_message("Success", message)
+                else:
+                    self.show_error(message)
         else:
             self.show_message("No Selection", "Please select a user to restore.")
     
@@ -298,14 +301,6 @@ class DeletedUserView(QWidget):
         self.close()
     
     # ── PUBLIC METHODS ───────────────────────────────────────────────────────
-    def load_users(self, users: list):
-        """
-        Load users into view
-        users: list of dicts with keys: user_id, first_name, last_name, phone, email, role
-        """
-        self.all_users = users
-        self._display_users(users)
-    
     def get_selected_row(self) -> int:
         return self.table.currentRow()
     
@@ -337,17 +332,5 @@ if __name__ == "__main__":
     
     app = QApplication(sys.argv)
     w = DeletedUserView()
-    
-    # Sample data for testing
-    sample_users = [
-        {"user_id": 1, "first_name": "John", "last_name": "Doe", 
-         "phone": "09123456789", "email": "john@example.com", "role": "Admin"},
-        {"user_id": 2, "first_name": "Jane", "last_name": "Smith", 
-         "phone": "09876543210", "email": "jane@example.com", "role": "Staff"},
-        {"user_id": 3, "first_name": "Mike", "last_name": "Johnson", 
-         "phone": "09111222333", "email": "mike@example.com", "role": "Staff"},
-    ]
-    
-    w.load_users(sample_users)
     w.show()
     sys.exit(app.exec())

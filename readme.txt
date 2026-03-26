@@ -1,445 +1,54 @@
-Hotel Management System — Project Context & Implementation Roadmap
+Hotel Management System – Project Overview and Implementation Plan
 Project Context
-You are developing a comprehensive Hotel Management System with a MySQL backend and a PyQt6 graphical user interface. The system is designed to streamline hotel operations by managing guests, rooms, reservations, services, user accounts, and financial transactions.
+This is a Hotel Management System built with Python using PyQt6 for the graphical user interface and MySQL for data persistence. The application follows a Model-View-Controller architecture where models handle database operations, controllers contain business logic, and views manage the user interface. The system supports two user roles: Admin, who has full system access including user management and audit logs, and Staff, who handles day-to-day operations like reservations, guest management, and check-ins. The database schema includes tables for users, guests, rooms, services, reservations, reservation services, receipts, and admin logs.
 
-System Architecture
-The application follows a three-tier architecture:
+Current State Assessment
+The database layer is fully functional with a complete schema, working connection manager, and all models implemented. The authentication system is complete with a working AuthController that handles login, registration, and password reset with OTP verification. The service management module is fully integrated with ServiceController connected to ServiceView, AddServiceView, EditServiceView, and DeletedServicesView. The user interface for all views exists but many are not yet connected to their respective controllers.
 
-Database Layer (MySQL) — Complete schema with tables for users, guests, rooms, services, reservations, reservation_services, receipts, and admin_logs. The schema includes soft-delete functionality, generated columns (nights), and proper foreign key constraints.
+Guest management views exist but lack a GuestController to connect them to GuestModel. Room management exists only as a static panel with no controller or model integration. Reservation management has a UI panel but needs ReservationController and integration with ReservationModel. Receipt view exists but needs ReceiptController. Both admin and staff dashboards need controllers to load real statistics. AdminLogsView expects a log format that does not match what AdminLogModel currently provides. Account management views for user administration are not connected to any controller.
 
-Model Layer (Python) — Data access objects in the models/ directory. Each model (UserModel, GuestModel, RoomModel, ServiceModel, ReservationModel, ReceiptModel, AdminLogModel) provides CRUD operations with error handling and database connection management via a singleton pattern.
+Step-by-Step Implementation Plan
+Phase 1: Core Controllers
+First, create GuestController in controllers/guest_controller.py. This singleton class will implement get_all_active, get_all_deleted, get_by_id, and search methods that call the corresponding GuestModel methods. For create, update, soft_delete, and restore, add validation and call AdminLogModel.log to record actions with the current user from AuthController.
 
-View Layer (PyQt6) — A complete set of GUI views organized by module:
+Second, create RoomController in controllers/room_controller.py. Implement get_all, get_available, get_by_id, create, update, update_status, and delete. The get_available method must accept check-in and check-out dates to find rooms not booked in that range.
 
-Authentication (AdminLoginView, StaffLoginView, ForgotPasswordView, EnterOTPView, NewPasswordView)
+Third, create ReservationController in controllers/reservation_controller.py. Implement create to insert a reservation and calculate nights automatically. Implement get_all with optional status filter, get_by_id, and get_today_stats. Implement update_status to handle check-in, check-out, and cancellation. When checking out, automatically generate a receipt by calculating total from room price plus any booked services, then call ReceiptModel.create.
 
-Registration (AdminRegistrationView, StaffRegistrationView)
+Fourth, create ReceiptController in controllers/receipt_controller.py. Implement generate_receipt to format receipt data for display, and get_by_reservation to retrieve receipt details including guest name, room details, and services.
 
-Account Management (StaffAndAdminAccountView, DeletedUserView, EditUserView)
+Phase 2: Dashboard and User Controllers
+Create DashboardController in controllers/dashboard_controller.py. Implement get_admin_stats to return total reservations count, active services count, staff user count, and total revenue from receipts. Implement get_staff_today_stats to return today’s reservations count, check-ins, check-outs, and revenue from reservations where check_out equals current date.
 
-Guest Management (GuestView, GuestPanelView, AddGuestView, EditGuestView, DeletedGuestView)
+Create UserController in controllers/user_controller.py for account management. Implement get_all_active, get_all_deleted, get_by_id, create, update, soft_delete, and restore. Add email uniqueness validation and log all actions to admin_logs.
 
-Room Management (RoomPanel)
+Phase 3: Guest Management Integration
+Modify GuestView.py to connect to GuestController. In the init method, initialize self.controller = get_guest_controller(). Replace load_sample_data with load_guests that calls self.controller.get_all_active and populates the table. Connect the add button to open AddGuestView, and when the dialog accepts, call self.controller.create with the entered data then refresh the table. Connect the edit button to open EditGuestView with the selected guest’s data, call self.controller.update on accept, then refresh. Connect the delete button to call self.controller.soft_delete after confirmation. Connect the deleted button to open DeletedGuestView. In DeletedGuestView, connect restore button to call self.controller.restore.
 
-Service Management (ServiceView, AddServiceView, EditServiceView, DeletedServicesView, ServicesPanel)
+Modify GuestPanel.py similarly to use GuestController for the form panel and table.
 
-Reservation Management (ReservationPanel, ReceiptView, DatePicker)
+Phase 4: Room Management Integration
+Modify RoomPanel.py to connect to RoomController. Initialize self.controller = get_room_controller(). Replace static_rooms with load_rooms that calls self.controller.get_all. For add room, validate input and call self.controller.create. For delete, call self.controller.delete after confirmation. For status update, call self.controller.update_status with the selected room. For edit, when a row is selected, populate the form and use update method.
 
-Dashboard (AdminDashboardView, StaffDashboardView)
+Phase 5: Reservation Management Integration
+Modify ReservationPanel.py to connect to ReservationController. Initialize self.controller = get_reservation_controller() and self.room_controller = get_room_controller() for room availability. When find available rooms is clicked, use selected dates to call self.room_controller.get_available and populate the room combo box. Load guests from GuestController.get_all_active into the guest combo box. When confirm reservation is clicked, call self.controller.create with guest_id, room_id, current user_id, dates, total price, and notes. After creation, refresh the table.
 
-Navigation (Mainframe with tabbed interface)
+Load the reservation table by calling self.controller.get_all. Connect check-in, check-out, and cancel buttons to call self.controller.update_status. For check-out, also open ReceiptView with the receipt data.
 
-Audit (AdminLogsView)
+Phase 6: Dashboard Integration
+Modify AdminDashboardView.py to connect to DashboardController. In the show method or after login, call self.controller.get_admin_stats and update the stat labels with the returned values. Connect the reservation card to open MainframeView with the reservations tab selected. Connect the guest card to open GuestView. Connect the service card to open ServiceView. Connect the account management card to open StaffAndAdminAccountView. Connect the reports card to open AdminLogsView.
 
-Controller Layer (To be completed) — Currently only AuthController exists. The remaining controllers (UserController, GuestController, RoomController, ServiceController, ReservationController, ReceiptController) need to be created to bridge views with models.
+Modify StaffDashboardView.py similarly using get_staff_today_stats. Connect the manage reservations card to open MainframeView with reservations tab selected.
 
-Current State
-Database schema — Complete and ready
+Phase 7: Account Management Integration
+Modify StaffAndAdminAccountView.py to connect to UserController. Initialize self.controller = get_user_controller(). Replace sample data with load_users that calls self.controller.get_all_active. Connect the create admin and create staff buttons to open AdminRegistrationView and StaffRegistrationView respectively, which should call AuthController.register_admin and register_staff. Connect the edit button to open EditUserView and call self.controller.update. Connect the delete button to call self.controller.soft_delete. Connect the deleted button to open DeletedUserView with self.controller.get_all_deleted.
 
-Models — Fully implemented with all CRUD operations
+Phase 8: Admin Logs Fix
+Modify AdminLogModel.py to store logs in a structured JSON format. Change the log method to accept table_name, record_id, old_values, and new_values as parameters, storing them in the description field as JSON. Alternatively, alter the database schema to add these columns. Then modify AdminLogsView.py to parse the JSON from description and display it in the table columns. The view expects keys table_name, record_id, action, changed_by, timestamp, old_values, new_values. Either adjust the model to return this structure or adjust the view to match what the model returns.
 
-Views — All GUI screens are built with consistent styling
+Phase 9: Mainframe Navigation Integration
+Modify Mainframe.py to accept user_role and user_id parameters. When the back button is clicked, navigate to the appropriate dashboard based on role. Ensure the tabs are loaded with the correct panels that are already integrated with their controllers. Pass the main_window reference to each panel so they can navigate back correctly.
 
-Controllers — Only authentication controller exists
-
-Integration — Views currently use static/demo data; no database connections
-
-Technology Stack
-Python 3.x with PyQt6 for GUI
-
-MySQL with mysql-connector-python
-
-bcrypt for password hashing
-
-SMTP for OTP email delivery
-
-Singleton pattern for database connection management
-
-
-
-Step-by-Step Implementation Process
-Phase 1: Foundation Setup
-Step 1 — Database Initialization
-
-Execute schema.sql to create the database and all tables
-
-Verify the default admin account (admin@hotelms.com / Admin@123) is inserted
-
-Test database connection using utils/db_connection.py
-
-Step 2 — Environment Configuration
-
-Set up SMTP credentials in utils/otp_utils.py for password reset functionality
-
-Configure database credentials in config/db_config.py
-
-Create a .env file for sensitive information (optional but recommended)
-
-Step 3 — Core Utilities Testing
-
-Test password_utils.py with hash and verify functions
-
-Test otp_utils.py OTP generation (without actual email sending initially)
-
-Verify db_connection.py connects and reconnects properly
-
-Phase 2: Authentication Layer Completion
-Step 4 — Complete Admin Login Integration
-
-Modify AdminLoginView.py to call AuthController.login_admin()
-
-Add proper error handling for invalid credentials
-
-After successful login, retrieve user data and pass to AdminDashboardView
-
-Store current user in AuthController singleton for session management
-
-Step 5 — Complete Staff Login Integration
-
-Connect StaffLoginView.py to AuthController.login_staff()
-
-Route to StaffDashboardView on success
-
-Ensure role-based access control is enforced
-
-Step 6 — Complete Password Reset Flow
-
-Connect ForgotPasswordView to AuthController.request_password_reset()
-
-Connect EnterOTPView to AuthController.verify_otp()
-
-Connect NewPasswordView to AuthController.reset_password()
-
-Test the full flow with actual email sending
-
-Add validation for OTP expiration and retry limits
-
-Step 7 — Registration Integration
-
-Connect AdminRegistrationView to AuthController.register_admin()
-
-Connect StaffRegistrationView to AuthController.register_staff()
-
-Add validation for duplicate emails and password strength
-
-Show appropriate success/error messages
-
-Phase 3: User Management (Staff & Admin Accounts)
-Step 8 — Load Users in StaffAndAdminAccountView
-
-Create UserController with methods: get_all_active(), get_by_id(), update(), soft_delete(), restore()
-
-Connect StaffAndAdminAccountView to UserController.get_all_active()
-
-Populate table with real user data from database
-
-Step 9 — Edit User Functionality
-
-Connect EditUserView to UserController.update()
-
-Load existing data into edit form
-
-Validate email uniqueness before updating
-
-Show success/failure messages
-
-Step 10 — Delete and Restore Users
-
-Connect Delete button to UserController.soft_delete()
-
-Connect DeletedUserView to UserController.get_all_deleted()
-
-Connect Restore button to UserController.restore()
-
-Add confirmation dialogs before destructive actions
-
-Step 11 — Audit Logging for User Actions
-
-Implement AdminLogModel.log() calls for create, update, delete, restore operations
-
-Log user_id of the acting admin, action type, and relevant details
-
-Phase 4: Guest Management
-Step 12 — Create GuestController
-
-Implement methods: get_all_active(), get_all_deleted(), create(), update(), soft_delete(), restore(), search()
-
-Add validation for required fields and unique email
-
-Step 13 — Connect GuestView
-
-Load active guests into table on view initialization
-
-Connect Add button to open AddGuestView and call controller
-
-Connect Edit button to open EditGuestView and update
-
-Connect Delete button to soft delete with confirmation
-
-Implement search functionality filtering
-
-Step 14 — Connect DeletedGuestView
-
-Load deleted guests on view initialization
-
-Connect Restore button to controller.restore()
-
-Refresh both active and deleted views after operations
-
-Step 15 — Add Audit Logging for Guest Operations
-
-Log all create, update, delete, restore actions with old and new values (JSON format)
-
-Phase 5: Room Management
-Step 16 — Create RoomController
-
-Implement methods: get_all(), get_by_id(), create(), update(), update_status(), delete(), get_available(check_in, check_out)
-
-Add validation for room number uniqueness
-
-Step 17 — Connect RoomPanel
-
-Replace static self.static_rooms with RoomController.get_all()
-
-Connect Add Room button to controller.create()
-
-Connect Delete button to controller.delete()
-
-Connect Set Status button to controller.update_status()
-
-Connect Clear Form button to reset form fields
-
-Step 18 — Add Room Availability Search
-
-Ensure RoomController.get_available() correctly filters rooms not booked in date range
-
-Test with overlapping reservation scenarios
-
-Phase 6: Service Management
-Step 19 — Create ServiceController
-
-Implement methods: get_all_active(), get_all_deleted(), create(), update(), soft_delete(), restore()
-
-Add validation for price (positive) and duration (positive integer)
-
-Step 20 — Connect ServiceView
-
-Load active services into table
-
-Connect Add button to AddServiceView and controller.create()
-
-Connect Edit button to EditServiceView and controller.update()
-
-Connect Delete button to controller.soft_delete()
-
-Implement search functionality
-
-Step 21 — Connect DeletedServicesView
-
-Load deleted services
-
-Connect Restore button to controller.restore()
-
-Update both views after operations
-
-Step 22 — Connect ServicesPanel (Booking)
-
-Load services into dropdown from controller.get_all_active()
-
-Calculate total price based on selected service and duration
-
-Connect Book button to create reservation service entry
-
-Phase 7: Reservation Management (Core Feature)
-Step 23 — Create ReservationController
-
-Implement methods: create(), get_all(), get_by_id(), update_status(), add_service(), get_services()
-
-Add night calculation and total price computation
-
-Implement date validation (check_out > check_in)
-
-Step 24 — Load Dropdowns in ReservationPanel
-
-Populate guest dropdown from GuestController.get_all_active()
-
-Load rooms only after date selection (Find Available Rooms button)
-
-Step 25 — Implement Room Availability Search
-
-Connect Find Available Rooms button to RoomController.get_available(check_in, check_out)
-
-Validate that both dates are selected
-
-Populate room dropdown with available rooms and display prices
-
-Step 26 — Create New Reservation
-
-Get selected guest, room, dates, notes
-
-Calculate nights and total price
-
-Call ReservationController.create() with current user_id from session
-
-Clear form and refresh table on success
-
-Step 27 — Load Reservations Table
-
-Call ReservationController.get_all() on view initialization
-
-Add status filter functionality
-
-Implement color-coding for different reservation statuses
-
-Step 28 — Reservation Status Updates
-
-Connect Check-In button to ReservationController.update_status(reservation_id, 'CHECKED_IN')
-
-Connect Check-Out button to update status and potentially generate receipt
-
-Connect Cancel button to update status to 'CANCELLED'
-
-Refresh table after each operation
-
-Phase 8: Receipt Generation
-Step 29 — Create ReceiptController
-
-Implement methods: generate_receipt(reservation_id), get_by_reservation(reservation_id), get_by_id()
-
-Calculate subtotal (room total + service totals)
-
-Calculate tax (e.g., 5% of subtotal)
-
-Call ReceiptModel.create() to store receipt
-
-Step 30 — Connect Receipt Generation
-
-On Check-Out, generate receipt automatically
-
-Display receipt in ReceiptView
-
-Provide option to view receipt from reservation table
-
-Add print functionality (optional)
-
-Phase 9: Dashboard Statistics
-Step 31 — Connect AdminDashboardView
-
-Call ReservationModel.get_today_stats() for today's check-ins, check-outs, reservations
-
-Call UserModel.get_all_active() for total staff count
-
-Call ServiceModel.get_all_active() for available services count
-
-Calculate total revenue from completed reservations
-
-Step 32 — Connect StaffDashboardView
-
-Display today's reservations, check-ins, check-outs, revenue
-
-Filter for staff-accessible data only
-
-Phase 10: Audit Logs
-Step 33 — Create AdminLogController
-
-Implement methods: get_all(), get_by_user(), log_action()
-
-Connect AdminLogsView to controller for display
-
-Add action and table filtering
-
-Step 34 — Add Logging Throughout Application
-
-Log user login/logout
-
-Log all create, update, delete operations across all modules
-
-Store old and new values as JSON for update operations
-
-Phase 11: Navigation and Session Management
-Step 35 — Create Main Application Entry Point
-
-Create main.py with application initialization
-
-Set up database connection on startup
-
-Show appropriate login screen
-
-Pass session user data to all subsequent views
-
-Step 36 — Implement Logout Functionality
-
-Connect Logout buttons to AuthController.logout()
-
-Return to login screen on logout
-
-Clear session data
-
-Step 37 — Role-Based Navigation
-
-Admin dashboard shows all management options
-
-Staff dashboard shows only reservation, guest, and service views
-
-Restrict access to admin-only features (user management, audit logs)
-
-Phase 12: Testing and Refinement
-Step 38 — End-to-End Testing
-
-Test complete user flows:
-
-Admin creates staff account
-
-Staff creates reservation
-
-Staff checks in guest
-
-Staff adds services during stay
-
-Staff checks out guest and generates receipt
-
-Admin views audit logs
-
-Step 39 — Error Handling
-
-Add try-catch blocks in all controller methods
-
-Display user-friendly error messages in views
-
-Log database errors for debugging
-
-Step 40 — Performance Optimization
-
-Implement connection pooling if needed
-
-Add pagination for large tables
-
-Optimize database queries with proper indexes
-
-Phase 13: Final Integration and Deployment
-Step 41 — Complete All Module Connections
-
-Ensure no view uses static/demo data
-
-Verify all signals are properly connected
-
-Test all CRUD operations across modules
-
-Step 42 — Documentation
-
-Write user manual for hotel staff
-
-Document installation and setup process
-
-Create API documentation for future maintenance
-
-Step 43 — Deployment Preparation
-
-Package application with PyInstaller for Windows
-
-Create database backup and restore scripts
-
-Prepare installation guide for production environment
-
-This roadmap provides a structured, incremental approach to building the complete Hotel Management System. Each phase builds upon the previous one, allowing for continuous testing and validation. The priority is to first establish a solid foundation (authentication, database connectivity), then build out core business features (reservations, guests), followed by administrative features (user management, audit logs), and finally polish the application with dashboards and navigation.
+Phase 10: Testing and Validation
+Test each module sequentially starting from Phase 1. Verify that guest CRUD operations work and logs are created. Verify room management creates, updates, and deletes rooms correctly. Verify reservations can be created, checked in, checked out, and cancelled, and that receipts generate on check-out. Verify dashboard stats match the database. Verify user account management works for both admin and staff. Verify admin logs display correctly with proper formatting.
 

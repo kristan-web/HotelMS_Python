@@ -11,6 +11,9 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QCursor, QColor, QBrush
 
+from controllers.user_controller import get_user_controller
+from controllers.auth_controller import get_auth_controller
+
 
 class StaffAndAdminAccountView(QWidget):
     """
@@ -24,10 +27,14 @@ class StaffAndAdminAccountView(QWidget):
     def __init__(self, main_window=None):
         super().__init__()
         self.main_window = main_window
+        self.controller = get_user_controller()
+        self.auth_controller = get_auth_controller()
+        self.current_user = self.auth_controller.get_current_user()
         self.setWindowTitle("Account Management")
         self.setMinimumSize(900, 650)
-        self.all_users = []
         self._build_ui()
+        self._connect_signals()
+        self.load_users()
         
     def _build_ui(self):
         self.setObjectName("user_root")
@@ -78,7 +85,6 @@ class StaffAndAdminAccountView(QWidget):
             }
         """)
         self.deleted_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.deleted_btn.clicked.connect(self.view_deleted)
         title_row.addWidget(self.deleted_btn)
         
         root.addLayout(title_row)
@@ -217,7 +223,6 @@ class StaffAndAdminAccountView(QWidget):
             }
         """)
         self.back_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.back_btn.clicked.connect(self.go_back)
         
         self.create_admin_btn = QPushButton("Create New Admin Account")
         self.create_admin_btn.setFont(QFont("Segoe UI Semilight", 11, QFont.Weight.Bold))
@@ -235,7 +240,6 @@ class StaffAndAdminAccountView(QWidget):
             }
         """)
         self.create_admin_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.create_admin_btn.clicked.connect(self.create_admin)
         
         self.create_staff_btn = QPushButton("Create New Staff Account")
         self.create_staff_btn.setFont(QFont("Segoe UI Semilight", 11, QFont.Weight.Bold))
@@ -253,7 +257,6 @@ class StaffAndAdminAccountView(QWidget):
             }
         """)
         self.create_staff_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.create_staff_btn.clicked.connect(self.create_staff)
         
         btn_row.addWidget(self.back_btn)
         btn_row.addStretch()
@@ -261,12 +264,19 @@ class StaffAndAdminAccountView(QWidget):
         btn_row.addWidget(self.create_staff_btn)
         root.addLayout(btn_row)
     
-    def _make_row_buttons(self, row: int):
+    def _connect_signals(self):
+        """Connect button signals."""
+        self.back_btn.clicked.connect(self.go_back)
+        self.create_admin_btn.clicked.connect(self.create_admin)
+        self.create_staff_btn.clicked.connect(self.create_staff)
+        self.deleted_btn.clicked.connect(self.view_deleted)
+    
+    def _make_row_buttons(self, row: int, user_id: int):
         """Creates Edit + Delete buttons for each table row."""
         cell_widget = QWidget()
         cell_widget.setObjectName("row_btn_widget")
         cell_widget.setStyleSheet(
-            "QWidget#row_btn_widget { background-color: transparent; border: none; }")
+            "QWidget#row_btn_widget { background-color: #3D2850; border: none; }")
         
         layout = QHBoxLayout(cell_widget)
         layout.setContentsMargins(4, 4, 4, 4)
@@ -313,16 +323,17 @@ class StaffAndAdminAccountView(QWidget):
     
     def search_users(self):
         """Filter users based on search text"""
-        search_text = self.get_search_text().lower()
+        search_text = self.get_search_text()
         if not search_text:
-            self._display_users(self.all_users)
+            self.load_users()
         else:
-            filtered = [u for u in self.all_users 
-                       if search_text in u.get('first_name', '').lower() or 
-                          search_text in u.get('last_name', '').lower() or
-                          search_text in u.get('email', '').lower() or
-                          search_text in u.get('phone', '').lower()]
+            filtered = self.controller.search(search_text)
             self._display_users(filtered)
+    
+    def load_users(self):
+        """Load all active users from database"""
+        users = self.controller.get_all_active()
+        self._display_users(users)
     
     def _display_users(self, users):
         """Display users in table"""
@@ -333,14 +344,16 @@ class StaffAndAdminAccountView(QWidget):
             self.table.insertRow(row)
             self.table.setRowHeight(row, 40)
             
-            self.table.setItem(row, 0, QTableWidgetItem(str(u.get('user_id', ''))))
-            self.table.setItem(row, 1, QTableWidgetItem(str(u.get('first_name', ''))))
-            self.table.setItem(row, 2, QTableWidgetItem(str(u.get('last_name', ''))))
-            self.table.setItem(row, 3, QTableWidgetItem(str(u.get('phone', ''))))
-            self.table.setItem(row, 4, QTableWidgetItem(str(u.get('email', ''))))
+            user_id = u['user_id']
+            
+            self.table.setItem(row, 0, QTableWidgetItem(str(user_id)))
+            self.table.setItem(row, 1, QTableWidgetItem(u['first_name']))
+            self.table.setItem(row, 2, QTableWidgetItem(u['last_name']))
+            self.table.setItem(row, 3, QTableWidgetItem(u['phone']))
+            self.table.setItem(row, 4, QTableWidgetItem(u['email']))
             
             # Role item with color
-            role = str(u.get('role', ''))
+            role = u['role']
             role_item = QTableWidgetItem(role)
             if role == "Admin":
                 role_item.setForeground(QBrush(QColor(200, 40, 40)))
@@ -351,7 +364,7 @@ class StaffAndAdminAccountView(QWidget):
             self.table.setItem(row, 5, role_item)
             
             # Actions column
-            cell, edit_btn, del_btn = self._make_row_buttons(row)
+            cell, edit_btn, del_btn = self._make_row_buttons(row, user_id)
             edit_btn.clicked.connect(lambda _, r=row: self.edit_user(r))
             del_btn.clicked.connect(lambda _, r=row: self.delete_user(r))
             self.table.setCellWidget(row, 6, cell)
@@ -380,18 +393,39 @@ class StaffAndAdminAccountView(QWidget):
         )
         
         if self.edit_dialog.exec():
-            self.show_message("Success", "User updated successfully!")
+            updated_data = self.edit_dialog.get_user_data()
+            success, message = self.controller.update(
+                int(updated_data['user_id']),
+                updated_data['first_name'],
+                updated_data['last_name'],
+                updated_data['email'],
+                updated_data['phone'],
+                updated_data['role']
+            )
+            if success:
+                self.load_users()
+                self.show_message("Success", message)
+            else:
+                self.show_error(message)
     
     def delete_user(self, row):
         """Delete user"""
+        user_id = int(self.get_table_value(row, 0))
         user_name = f"{self.get_table_value(row, 1)} {self.get_table_value(row, 2)}"
+        
         if self.confirm_delete(user_name):
-            self.show_message("Success", f"User '{user_name}' moved to deleted users!")
+            success, message = self.controller.soft_delete(user_id)
+            if success:
+                self.load_users()
+                self.show_message("Success", message)
+            else:
+                self.show_error(message)
     
     def view_deleted(self):
         """Open deleted users view"""
         from views.AccountManagement.AccountAdministration.DeletedUserView import DeletedUserView
         self.deleted_view = DeletedUserView(self.main_window)
+        self.deleted_view.deleted_data_changed.connect(self.load_users)
         self.deleted_view.show()
         self.hide()
     
@@ -399,7 +433,7 @@ class StaffAndAdminAccountView(QWidget):
         """Open admin registration view"""
         from views.AccountManagement.AccountCreation.AdminRegistrationView import AdminRegistrationView
         self.admin_reg_view = AdminRegistrationView(self.main_window, "dashboard")
-        self.admin_reg_view.back_requested.connect(self.show)
+        self.admin_reg_view.back_requested.connect(self.load_users)
         self.admin_reg_view.show()
         self.hide()
     
@@ -407,7 +441,7 @@ class StaffAndAdminAccountView(QWidget):
         """Open staff registration view"""
         from views.AccountManagement.AccountCreation.StaffRegistrationView import StaffRegistrationView
         self.staff_reg_view = StaffRegistrationView(self.main_window, "dashboard")
-        self.staff_reg_view.back_requested.connect(self.show)
+        self.staff_reg_view.back_requested.connect(self.load_users)
         self.staff_reg_view.show()
         self.hide()
     
@@ -418,11 +452,6 @@ class StaffAndAdminAccountView(QWidget):
         self.close()
     
     # ── PUBLIC METHODS ───────────────────────────────────────────────────────
-    def load_users(self, users: list):
-        """Load users into view"""
-        self.all_users = users
-        self._display_users(users)
-    
     def get_selected_row(self) -> int:
         return self.table.currentRow()
     
@@ -454,14 +483,5 @@ if __name__ == "__main__":
     
     app = QApplication(sys.argv)
     w = StaffAndAdminAccountView()
-    
-    sample_users = [
-        {"user_id": 1, "first_name": "John", "last_name": "Doe", 
-         "phone": "09123456789", "email": "john@example.com", "role": "Admin"},
-        {"user_id": 2, "first_name": "Jane", "last_name": "Smith", 
-         "phone": "09876543210", "email": "jane@example.com", "role": "Staff"},
-    ]
-    
-    w.load_users(sample_users)
     w.show()
     sys.exit(app.exec())
