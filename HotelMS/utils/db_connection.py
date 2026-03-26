@@ -1,7 +1,7 @@
-"""
-Database Connection Manager using PyMySQL
-Maintains the same interface as before but uses pymysql
-"""
+# utils/db_connection.py
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import pymysql
 from pymysql import Error
@@ -54,25 +54,17 @@ class DatabaseConnection:
             self.connect()
         return self._connection
 
-    def is_connected(self) -> bool:
-        """Check whether the database is reachable."""
-        return self._connection is not None
 
-
-# ── Module-level singleton ────────────────────────────────────────────────────
 _db = DatabaseConnection()
 
 
 def get_connection():
-    """Return the shared MySQL connection (reconnects automatically)."""
     return _db.get_connection()
 
 
 def connect():
-    """Open the initial connection. Call once at application startup."""
     return _db.connect()
 
 
 def disconnect():
-    """Close the connection. Call once at application shutdown."""
     _db.disconnect()
