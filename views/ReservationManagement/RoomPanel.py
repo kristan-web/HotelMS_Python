@@ -14,7 +14,6 @@ class RoomPanel(QWidget):
     # Signal definitions for controller communication
     add_room_requested = pyqtSignal(dict)
     edit_room_requested = pyqtSignal(dict)
-    delete_room_requested = pyqtSignal(str)
     update_status_requested = pyqtSignal(str, str)
     refresh_requested = pyqtSignal()
     clear_form_requested = pyqtSignal()
@@ -41,7 +40,6 @@ class RoomPanel(QWidget):
     def _connect_signals(self):
         self.btn_add.clicked.connect(self.handle_add_room)
         self.btn_set.clicked.connect(self.handle_set_status)
-        self.btn_del.clicked.connect(self.handle_delete_room)
         self.btn_refresh.clicked.connect(self.handle_refresh)
         self.btn_clear.clicked.connect(self.handle_clear_form)
         self.table.itemSelectionChanged.connect(self.fill_form_from_table)
@@ -123,11 +121,9 @@ class RoomPanel(QWidget):
         tools.addWidget(self.room_status_combo)
 
         self.btn_set = self._action_button("Set Status", "#412B4E")
-        self.btn_del = self._action_button("Delete Room", "#BE3455")
         self.btn_refresh = self._action_button("Refresh", "#412B4E")
         
         tools.addWidget(self.btn_set)
-        tools.addWidget(self.btn_del)
         tools.addWidget(self.btn_refresh)
         tools.addStretch()
         layout.addLayout(tools)
@@ -232,25 +228,6 @@ class RoomPanel(QWidget):
                 self.show_error("Could not get room ID.")
         else:
             self.show_error("Please select a room to update status.")
-
-    def handle_delete_room(self):
-        row = self.get_selected_row()
-        if row >= 0:
-            room_id_item = self.table.item(row, 0)
-            if room_id_item:
-                room_id = room_id_item.text().strip()
-                room_number_item = self.table.item(row, 1)
-                room_number = room_number_item.text() if room_number_item else ""
-                
-                if room_id:
-                    if self.confirm_delete(room_number):
-                        self.delete_room_requested.emit(room_id)
-                else:
-                    self.show_error("Invalid room ID.")
-            else:
-                self.show_error("Could not get room ID.")
-        else:
-            self.show_error("Please select a room to delete.")
 
     def handle_refresh(self):
         self.refresh_requested.emit()
@@ -363,16 +340,6 @@ class RoomPanel(QWidget):
     def get_table_value(self, row: int, col: int) -> str:
         item = self.table.item(row, col)
         return item.text() if item else ""
-
-    def confirm_delete(self, room_number: str) -> bool:
-        reply = QMessageBox.question(
-            self,
-            "Confirm Delete",
-            f'Delete room "{room_number}"?\nThis action cannot be undone.',
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No
-        )
-        return reply == QMessageBox.StandardButton.Yes
 
     def show_message(self, title: str, message: str):
         QMessageBox.information(self, title, message)

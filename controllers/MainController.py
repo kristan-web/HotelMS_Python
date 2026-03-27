@@ -1,6 +1,7 @@
 """
 Main Controller - Manages application flow and view switching
 """
+
 import sys
 import os
 
@@ -14,8 +15,6 @@ from controllers.AccountController import get_account_controller
 from views.AccountManagement.AccountCreation.AdminLoginView import AdminLoginView
 from views.AccountManagement.AccountCreation.AdminRegistrationView import AdminRegistrationView
 from views.Dashboard.AdminDashboardView import AdminDashboardView
-from views.ReservationManagement.Mainframe import MainFrameView
-from views.ServiceManagement.ServiceView import ServiceView  # Import ServiceView
 
 
 class MainController(QObject):
@@ -27,19 +26,26 @@ class MainController(QObject):
         super().__init__()
         self.parent_widget = parent_widget
         self.account_controller = get_account_controller()
+        self.current_user = None  # Store current user
         
         # Setup stacked widget for view management
         self.stacked_widget = QStackedWidget()
         
-        # Create views
+        # Views
         self.login_view = None
         self.registration_view = None
         self.dashboard_view = None
-        self.reservation_view = None
-        self.service_view = None
         
-        # Current user data
-        self.current_user = None
+        # Controllers (persistent)
+        self.reservation_controller = None
+        self.service_controller = None
+        
+        # Track current view index
+        self.LOGIN_INDEX = 0
+        self.REGISTER_INDEX = 1
+        self.DASHBOARD_INDEX = 2
+        self.RESERVATION_INDEX = 3
+        self.SERVICE_INDEX = 4
         
         # Initialize
         self.setup_views()
@@ -61,36 +67,23 @@ class MainController(QObject):
             print(f"⚠️ Could not create dashboard view: {e}")
             self.dashboard_view = None
         
-        # Create reservation management view
-        try:
-            self.reservation_view = MainFrameView(user_role="Admin", controller=self)
-            print("✅ Reservation view created successfully")
-            self.setup_reservation_tabs()
-        except Exception as e:
-            print(f"⚠️ Could not create reservation view: {e}")
-            import traceback
-            traceback.print_exc()
-            self.reservation_view = None
+        # Create reservation controller (but not showing yet)
+        self._init_reservation_controller()
         
-        # Create service management view
-        try:
-            self.service_view = ServiceView()
-            print("✅ Service view created successfully")
-        except Exception as e:
-            print(f"⚠️ Could not create service view: {e}")
-            import traceback
-            traceback.print_exc()
-            self.service_view = None
+        # Create service controller (but not showing yet)
+        self._init_service_controller()
         
-        # Add views to stacked widget
-        self.stacked_widget.addWidget(self.login_view)  # Index 0
-        self.stacked_widget.addWidget(self.registration_view)  # Index 1
+        # Add views to stacked widget in consistent order
+        self.stacked_widget.addWidget(self.login_view)        # Index 0
+        self.stacked_widget.addWidget(self.registration_view) # Index 1
         if self.dashboard_view:
             self.stacked_widget.addWidget(self.dashboard_view)  # Index 2
-        if self.reservation_view:
-            self.stacked_widget.addWidget(self.reservation_view)  # Index 3
-        if self.service_view:
-            self.stacked_widget.addWidget(self.service_view)  # Index 4
+        
+        # Add placeholder widgets for controllers (will be replaced when shown)
+        self.reservation_placeholder = QWidget()
+        self.service_placeholder = QWidget()
+        self.stacked_widget.addWidget(self.reservation_placeholder)  # Index 3 - placeholder
+        self.stacked_widget.addWidget(self.service_placeholder)      # Index 4 - placeholder
         
         # Set the stacked widget as the main widget
         if self.parent_widget:
@@ -103,54 +96,84 @@ class MainController(QObject):
         # Start with login view
         self.show_login()
     
-    def setup_reservation_tabs(self):
-        """Setup tabs in reservation view"""
-        if not self.reservation_view:
-            return
-        
+    def _init_reservation_controller(self):
+        """Initialize reservation controller (lazy loading)"""
         try:
-            from views.ReservationManagement.ReservationPanel import ReservationPanel
-            from views.ReservationManagement.GuestPanel import GuestPanelView
-            from views.ReservationManagement.RoomPanel import RoomPanel
-            from views.ReservationManagement.ServicesPanel import ServicesPanel
+            from controllers.reservation_controller import ReservationController
             
-            reservation_panel = ReservationPanel()
-            guest_panel = GuestPanelView()
-            room_panel = RoomPanel()
-            services_panel = ServicesPanel()
+            # Create controller with parent reference
+            self.reservation_controller = ReservationController(
+                main_window=self.stacked_widget,
+                user_role="Admin"
+            )
             
-            self.reservation_view.add_tab(reservation_panel, "RESERVATIONS")
-            self.reservation_view.add_tab(guest_panel, "GUESTS")
-            self.reservation_view.add_tab(room_panel, "ROOMS")
-            self.reservation_view.add_tab(services_panel, "SERVICES")
+            # Connect back signal
+            if hasattr(self.reservation_controller, 'back_to_dashboard_requested'):
+                self.reservation_controller.back_to_dashboard_requested.connect(self.show_dashboard)
             
-            print("✅ Reservation tabs added successfully")
+            print("✅ Reservation controller initialized")
+            
         except Exception as e:
-            print(f"⚠️ Could not add tabs to reservation view: {e}")
+            print(f"⚠️ Could not initialize reservation controller: {e}")
             import traceback
             traceback.print_exc()
+            self.reservation_controller = None
     
-    def setup_service_connections(self):
-        """Setup service view connections and load initial data"""
-        if not self.service_view:
-            return
-        
+    def _init_service_controller(self):
+        """Initialize service controller (lazy loading)"""
         try:
-            # Connect service view signals
-            self.service_view.back_requested.connect(self.show_dashboard)
-            self.service_view.add_requested.connect(self.handle_add_service)
-            self.service_view.edit_requested.connect(self.handle_edit_service)
-            self.service_view.delete_requested.connect(self.handle_delete_service)
-            self.service_view.filter_changed.connect(self.handle_service_filter)
-            self.service_view.search_changed.connect(self.handle_service_search)
-            self.service_view.show_deleted_requested.connect(self.handle_show_deleted_services)
+            from controllers.service_controller import ServiceController
             
-            # Load initial service data
-            self.load_service_data()
+            # Create controller with parent reference
+            self.service_controller = ServiceController(
+                main_window=self.stacked_widget
+            )
             
-            print("✅ Service view connections established")
+            # Connect back signal
+            if hasattr(self.service_controller, 'back_to_main_requested'):
+                self.service_controller.back_to_main_requested.connect(self.show_dashboard)
+            
+            print("✅ Service controller initialized")
+            
         except Exception as e:
-            print(f"⚠️ Could not setup service connections: {e}")
+            print(f"⚠️ Could not initialize service controller: {e}")
+            import traceback
+            traceback.print_exc()
+            self.service_controller = None
+    
+    def _get_reservation_widget(self):
+        """Get the actual reservation view widget"""
+        if self.reservation_controller and hasattr(self.reservation_controller, 'mainframe'):
+            return self.reservation_controller.mainframe
+        return None
+    
+    def _get_service_widget(self):
+        """Get the actual service view widget"""
+        if self.service_controller and hasattr(self.service_controller, 'service_view'):
+            return self.service_controller.service_view
+        return None
+    
+    def _ensure_reservation_in_stack(self):
+        """Ensure reservation view is in stacked widget"""
+        reservation_widget = self._get_reservation_widget()
+        if reservation_widget and self.stacked_widget.widget(self.RESERVATION_INDEX) != reservation_widget:
+            # Replace placeholder with actual widget
+            self.stacked_widget.insertWidget(self.RESERVATION_INDEX, reservation_widget)
+            # Remove placeholder if exists
+            if self.stacked_widget.widget(self.RESERVATION_INDEX + 1) == self.reservation_placeholder:
+                self.stacked_widget.removeWidget(self.reservation_placeholder)
+            print("✅ Reservation view added to stack")
+    
+    def _ensure_service_in_stack(self):
+        """Ensure service view is in stacked widget"""
+        service_widget = self._get_service_widget()
+        if service_widget and self.stacked_widget.widget(self.SERVICE_INDEX) != service_widget:
+            # Replace placeholder with actual widget
+            self.stacked_widget.insertWidget(self.SERVICE_INDEX, service_widget)
+            # Remove placeholder if exists
+            if self.stacked_widget.widget(self.SERVICE_INDEX + 1) == self.service_placeholder:
+                self.stacked_widget.removeWidget(self.service_placeholder)
+            print("✅ Service view added to stack")
     
     def connect_signals(self):
         """Connect all signals between views and controller"""
@@ -169,20 +192,9 @@ class MainController(QObject):
         if self.dashboard_view:
             self.dashboard_view.logout_btn.clicked.connect(self.handle_logout)
             
-            # Connect navigation cards
-            if hasattr(self.dashboard_view, 'reservation_card'):
-                self.dashboard_view.reservation_card.mousePressEvent = lambda e: self.navigate_to_reservation()
-            if hasattr(self.dashboard_view, 'service_card'):
-                self.dashboard_view.service_card.mousePressEvent = lambda e: self.navigate_to_service()
-        
-        # Connect reservation view signals if reservation view exists
-        if self.reservation_view:
-            if hasattr(self.reservation_view, 'back_requested'):
-                self.reservation_view.back_requested.connect(self.show_dashboard)
-        
-        # Connect service view signals
-        if self.service_view:
-            self.setup_service_connections()
+            # Connect navigation cards using proper signals (UPDATED)
+            self.dashboard_view.reservation_clicked.connect(self.navigate_to_reservation)
+            self.dashboard_view.service_clicked.connect(self.navigate_to_service)
         
         # Connect controller signals
         self.account_controller.login_successful.connect(self.on_login_success)
@@ -190,163 +202,14 @@ class MainController(QObject):
         self.account_controller.login_failed.connect(self.on_login_failed)
         self.account_controller.registration_failed.connect(self.on_registration_failed)
     
-    def load_service_data(self):
-        """Load service data from database"""
-        from config.database import get_connection
-        
-        conn = get_connection()
-        if not conn:
-            return
-        
-        try:
-            cursor = conn.cursor()
-            query = "SELECT id, name, price, duration, status FROM services WHERE is_deleted = 0"
-            cursor.execute(query)
-            services = cursor.fetchall()
-            
-            # Convert to list of dicts
-            service_list = []
-            for s in services:
-                service_list.append({
-                    'id': s[0],
-                    'name': s[1],
-                    'price': s[2],
-                    'duration': s[3],
-                    'status': s[4]
-                })
-            
-            if self.service_view:
-                self.service_view.load_table(service_list)
-            
-            print(f"✅ Loaded {len(service_list)} services")
-        except Exception as e:
-            print(f"⚠️ Error loading services: {e}")
-        finally:
-            conn.close()
-    
-    def handle_add_service(self, service_data):
-        """Handle adding a new service"""
-        from config.database import get_connection
-        
-        conn = get_connection()
-        if not conn:
-            self.service_view.show_message("Error", "Database connection failed")
-            return
-        
-        try:
-            cursor = conn.cursor()
-            query = """
-                INSERT INTO services (name, price, duration, status, is_deleted, created_at)
-                VALUES (%s, %s, %s, %s, 0, NOW())
-            """
-            cursor.execute(query, (
-                service_data['name'],
-                service_data['price'],
-                service_data['duration'],
-                service_data['status']
-            ))
-            conn.commit()
-            
-            self.service_view.show_message("Success", "Service added successfully")
-            self.load_service_data()  # Refresh the table
-            
-        except Exception as e:
-            conn.rollback()
-            print(f"Error adding service: {e}")
-            self.service_view.show_message("Error", f"Failed to add service: {str(e)}")
-        finally:
-            conn.close()
-    
-    def handle_edit_service(self, service_data):
-        """Handle editing a service"""
-        from config.database import get_connection
-        
-        conn = get_connection()
-        if not conn:
-            self.service_view.show_message("Error", "Database connection failed")
-            return
-        
-        try:
-            cursor = conn.cursor()
-            query = """
-                UPDATE services 
-                SET name = %s, price = %s, duration = %s, status = %s, updated_at = NOW()
-                WHERE id = %s
-            """
-            cursor.execute(query, (
-                service_data['name'],
-                service_data['price'],
-                service_data['duration'],
-                service_data['status'],
-                service_data['id']
-            ))
-            conn.commit()
-            
-            self.service_view.show_message("Success", "Service updated successfully")
-            self.load_service_data()  # Refresh the table
-            
-        except Exception as e:
-            conn.rollback()
-            print(f"Error updating service: {e}")
-            self.service_view.show_message("Error", f"Failed to update service: {str(e)}")
-        finally:
-            conn.close()
-    
-    def handle_delete_service(self, service_id):
-        """Handle deleting a service (soft delete)"""
-        from config.database import get_connection
-        
-        conn = get_connection()
-        if not conn:
-            self.service_view.show_message("Error", "Database connection failed")
-            return
-        
-        try:
-            cursor = conn.cursor()
-            query = "UPDATE services SET is_deleted = 1, deleted_at = NOW() WHERE id = %s"
-            cursor.execute(query, (service_id,))
-            conn.commit()
-            
-            self.service_view.show_message("Success", "Service deleted successfully")
-            self.load_service_data()  # Refresh the table
-            self.load_dashboard_stats()  # Update dashboard stats
-            
-        except Exception as e:
-            conn.rollback()
-            print(f"Error deleting service: {e}")
-            self.service_view.show_message("Error", f"Failed to delete service: {str(e)}")
-        finally:
-            conn.close()
-    
-    def handle_service_filter(self, status):
-        """Handle service status filter"""
-        # Implement filtering logic
-        pass
-    
-    def handle_service_search(self, search_text):
-        """Handle service search"""
-        # Implement search logic
-        pass
-    
-    def handle_show_deleted_services(self):
-        """Handle showing deleted services"""
-        # Implement show deleted services
-        pass
-    
     def handle_login(self, email: str, password: str):
         """Handle login request"""
         success, message, user_data = self.account_controller.login_admin(email, password)
-        
-        if not success:
-            pass
-            
+    
     def handle_registration(self, user_data: dict):
         """Handle registration request"""
         success, message, user_id = self.account_controller.register_admin(user_data)
-        
-        if not success:
-            pass
-            
+    
     def handle_staff_login(self):
         """Handle staff login button click"""
         self.login_view.show_message("Staff Login", "Staff login will be implemented soon.")
@@ -365,15 +228,12 @@ class MainController(QObject):
             self.dashboard_view.set_session_label(full_name)
             self.load_dashboard_stats()
         
-        if self.reservation_view and hasattr(self.reservation_view, 'user_role'):
-            self.reservation_view.user_role = "Admin"
-        
         self.show_dashboard()
-        
+    
     def on_login_failed(self, error_msg: str):
         """Called when login fails"""
         self.login_view.show_error(error_msg)
-        
+    
     def on_registration_success(self, email: str):
         """Called when registration is successful"""
         self.registration_view.show_message(
@@ -381,66 +241,87 @@ class MainController(QObject):
             f"Account created successfully for {email}!\nPlease login."
         )
         self.show_login()
-        
+    
     def on_registration_failed(self, error_msg: str):
         """Called when registration fails"""
         self.registration_view.show_error(error_msg)
-        
+    
     def show_login(self):
         """Switch to login view"""
-        self.stacked_widget.setCurrentIndex(0)
+        self.stacked_widget.setCurrentIndex(self.LOGIN_INDEX)
         if self.parent_widget:
             self.parent_widget.setWindowTitle("Hotel Management System - Admin Login")
-        
+    
     def show_registration(self):
         """Switch to registration view"""
-        self.stacked_widget.setCurrentIndex(1)
+        self.stacked_widget.setCurrentIndex(self.REGISTER_INDEX)
         if self.parent_widget:
             self.parent_widget.setWindowTitle("Hotel Management System - Admin Registration")
     
     def show_dashboard(self):
-        """Switch to dashboard view"""
+        """Switch to dashboard view and refresh stats"""
         if self.dashboard_view:
-            self.stacked_widget.setCurrentIndex(2)
+            self.stacked_widget.setCurrentIndex(self.DASHBOARD_INDEX)
             if self.parent_widget:
                 self.parent_widget.setWindowTitle("Hotel Management System - Admin Dashboard")
             self.load_dashboard_stats()
+            print("🖥️ Showing dashboard")
         else:
             self.login_view.show_message("Info", "Dashboard view is not yet implemented.")
     
     def show_reservation(self):
         """Switch to reservation management view"""
-        if self.reservation_view:
-            self.stacked_widget.setCurrentIndex(3)
-            if self.parent_widget:
-                self.parent_widget.setWindowTitle("Hotel Management System - Reservation Management")
-            self.refresh_reservation_data()
+        if self.reservation_controller:
+            try:
+                # Ensure reservation view is in stack
+                self._ensure_reservation_in_stack()
+                
+                # Show the view
+                self.stacked_widget.setCurrentIndex(self.RESERVATION_INDEX)
+                if self.parent_widget:
+                    self.parent_widget.setWindowTitle("Hotel Management System - Reservation Management")
+                
+                # Refresh data
+                self.reservation_controller.refresh_all_data()
+                print("🖥️ Showing reservation management")
+            except Exception as e:
+                print(f"❌ Error showing reservation: {e}")
+                import traceback
+                traceback.print_exc()
+                self.show_message("Error", "Could not open reservation management.")
         else:
             self.show_message("Error", "Reservation management is not available.")
     
     def show_service(self):
         """Switch to service management view"""
-        if self.service_view:
-            self.stacked_widget.setCurrentIndex(4)
-            if self.parent_widget:
-                self.parent_widget.setWindowTitle("Hotel Management System - Service Management")
-            self.load_service_data()  # Refresh service data
+        if self.service_controller:
+            try:
+                # Ensure service view is in stack
+                self._ensure_service_in_stack()
+                
+                # Show the view
+                self.stacked_widget.setCurrentIndex(self.SERVICE_INDEX)
+                if self.parent_widget:
+                    self.parent_widget.setWindowTitle("Hotel Management System - Service Management")
+                
+                # Refresh service data
+                self.service_controller.refresh_service_view()
+                print("🖥️ Showing service management")
+            except Exception as e:
+                print(f"❌ Error showing service: {e}")
+                import traceback
+                traceback.print_exc()
+                self.show_message("Error", "Could not open service management.")
         else:
             self.show_message("Error", "Service management is not available.")
     
-    def refresh_reservation_data(self):
-        """Refresh data in reservation view"""
-        if not self.reservation_view:
-            return
-        
-        try:
-            for i in range(self.reservation_view.main_tabs.count()):
-                tab = self.reservation_view.main_tabs.widget(i)
-                if hasattr(tab, 'refresh_data'):
-                    tab.refresh_data()
-            print("✅ Reservation data refreshed")
-        except Exception as e:
-            print(f"⚠️ Could not refresh reservation data: {e}")
+    def navigate_to_reservation(self):
+        """Navigate to reservation management"""
+        self.show_reservation()
+    
+    def navigate_to_service(self):
+        """Navigate to service management"""
+        self.show_service()
     
     def handle_logout(self):
         """Handle logout request"""
@@ -456,54 +337,60 @@ class MainController(QObject):
             self.current_user = None
             if self.login_view:
                 self.login_view.password_input.clear()
+            
+            # Reset controllers to ensure clean state on next login
+            if self.reservation_controller:
+                self.reservation_controller.close()
+            
+            if self.service_controller:
+                self.service_controller.close()
+            
             self.show_login()
             print("✅ User logged out")
     
-    def navigate_to_reservation(self):
-        """Navigate to reservation management"""
-        self.show_reservation()
-    
-    def navigate_to_service(self):
-        """Navigate to service management"""
-        self.show_service()
+    def get_current_user_id(self) -> int:
+        """Get current logged-in user ID"""
+        if self.current_user and 'id' in self.current_user:
+            return self.current_user['id']
+        return 1  # Default to admin ID 1 if not found
     
     def load_dashboard_stats(self):
         """Load statistics from database to update dashboard"""
-        from config.database import get_connection
-        
-        conn = get_connection()
-        if not conn:
-            return
-        
         try:
-            cursor = conn.cursor()
+            from models.reservation_model import ReservationModel
+            from models.service_model import ServiceModel
+            from models.user_model import UserModel
             
-            cursor.execute("SELECT COUNT(*) FROM reservations WHERE status != 'Cancelled'")
-            total_reservations = cursor.fetchone()[0]
+            # Get reservation statistics
+            reservation_stats = ReservationModel.get_stats()
+            total_reservations = reservation_stats.get('total_reservations', 0)
             self.dashboard_view.set_total_reservations(total_reservations)
+            print(f"📊 Total reservations: {total_reservations}")
             
-            cursor.execute("SELECT COUNT(*) FROM services WHERE is_deleted = 0 AND status = 'Active'")
-            available_services = cursor.fetchone()[0]
-            self.dashboard_view.set_available_services(available_services)
+            # Get active services count
+            active_services = ServiceModel.count_active_services()
+            self.dashboard_view.set_available_services(active_services)
+            print(f"📊 Active services: {active_services}")
             
-            cursor.execute("SELECT COUNT(*) FROM users WHERE role = 'Staff' AND is_deleted = 0")
-            total_staff = cursor.fetchone()[0]
+            # Get total staff count
+            total_staff = UserModel.count_staff()
             self.dashboard_view.set_total_staff(total_staff)
+            print(f"📊 Total staff: {total_staff}")
             
-            cursor.execute("SELECT COALESCE(SUM(total_amount), 0) FROM reservations WHERE status = 'Completed'")
-            total_revenue = cursor.fetchone()[0]
+            # Get total revenue from completed reservations
+            total_revenue = ReservationModel.get_total_revenue()
             self.dashboard_view.set_total_revenue(int(total_revenue))
-            
-            print("✅ Dashboard statistics loaded")
+            print(f"📊 Total revenue: ₱{total_revenue:,.2f}")
             
         except Exception as e:
             print(f"⚠️ Error loading dashboard stats: {e}")
+            import traceback
+            traceback.print_exc()
+            # Set default values on error
             self.dashboard_view.set_total_reservations(0)
             self.dashboard_view.set_available_services(0)
             self.dashboard_view.set_total_staff(0)
             self.dashboard_view.set_total_revenue(0)
-        finally:
-            conn.close()
     
     def show_message(self, title: str, message: str):
         """Show a message box"""

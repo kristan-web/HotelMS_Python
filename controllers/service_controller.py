@@ -2,6 +2,7 @@
 Service Controller for Hotel Management System
 Connects ServiceView and DeletedServicesView with ServiceModel
 """
+
 import sys
 import os
 from typing import Optional, Dict, Any, List
@@ -33,6 +34,7 @@ class ServiceController(QObject):
         self.deleted_view = None
         self.current_status_filter = "ALL"
         self.current_search_text = ""
+        self.is_initialized = False
         
         # Initialize views
         self._init_views()
@@ -40,34 +42,55 @@ class ServiceController(QObject):
         
         # Load initial data
         self.refresh_service_view()
+        self.is_initialized = True
+        print("✅ Service controller initialized")
     
     def _init_views(self):
         """Initialize all views"""
-        self.service_view = ServiceView(self.main_window)
-        self.deleted_view = DeletedServicesView(self.main_window)
-        
-        # Set window flags to make them dialogs that can be managed properly
-        if self.main_window:
-            self.service_view.setParent(self.main_window)
-            self.deleted_view.setParent(self.main_window)
+        try:
+            self.service_view = ServiceView(self.main_window)
+            self.deleted_view = DeletedServicesView(self.main_window)
+            
+            # Set parent for proper window management
+            if self.main_window:
+                self.service_view.setParent(self.main_window)
+                self.deleted_view.setParent(self.main_window)
+            
+            # Connect deleted view back signal directly to controller method
+            # This ensures proper navigation without window destruction
+            if self.deleted_view:
+                self.deleted_view.back_requested.connect(self.show_service_view)
+            
+            # Initially hide deleted view
+            self.deleted_view.hide()
+            
+            print("✅ Service views initialized")
+        except Exception as e:
+            print(f"❌ Error initializing service views: {e}")
+            import traceback
+            traceback.print_exc()
     
     def _connect_signals(self):
         """Connect view signals to controller methods"""
-        # ServiceView signals
-        self.service_view.add_requested.connect(self.add_service)
-        self.service_view.edit_requested.connect(self.edit_service)
-        self.service_view.delete_requested.connect(self.delete_service)
-        self.service_view.back_requested.connect(self.go_back)
-        self.service_view.show_deleted_requested.connect(self.show_deleted_view)
-        
-        # Connect search and filter functionality for ServiceView
-        self.service_view.search_changed.connect(self.on_search_changed)
-        self.service_view.filter_changed.connect(self.on_filter_changed)
-        
-        # DeletedServicesView signals
-        self.deleted_view.restore_requested.connect(self.restore_service)
-        self.deleted_view.back_requested.connect(self.show_service_view)
-        self.deleted_view.search_changed.connect(self.on_deleted_search_changed)
+        try:
+            # ServiceView signals
+            if self.service_view:
+                self.service_view.add_requested.connect(self.add_service)
+                self.service_view.edit_requested.connect(self.edit_service)
+                self.service_view.delete_requested.connect(self.delete_service)
+                self.service_view.back_requested.connect(self.go_back)
+                self.service_view.show_deleted_requested.connect(self.show_deleted_view)
+                self.service_view.search_changed.connect(self.on_search_changed)
+                self.service_view.filter_changed.connect(self.on_filter_changed)
+            
+            # DeletedServicesView signals - already connected in _init_views
+            if self.deleted_view:
+                self.deleted_view.restore_requested.connect(self.restore_service)
+                self.deleted_view.search_changed.connect(self.on_deleted_search_changed)
+            
+            print("✅ Service signals connected")
+        except Exception as e:
+            print(f"❌ Error connecting service signals: {e}")
     
     # ==================== Search and Filter Functionality ====================
     
@@ -79,7 +102,7 @@ class ServiceController(QObject):
     def on_filter_changed(self, status: str):
         """Handle status filter changes"""
         self.current_status_filter = status
-        print(f"Filter changed to: {status}")  # Debug log
+        print(f"🔍 Filter changed to: {status}")
         self.refresh_service_view()
     
     def on_deleted_search_changed(self, search_text: str):
@@ -91,7 +114,7 @@ class ServiceController(QObject):
     def add_service(self, service_data: dict):
         """Handle add service request"""
         try:
-            print(f"Adding service: {service_data}")  # Debug log
+            print(f"➕ Adding service: {service_data}")
             
             # Validate required fields
             if not service_data.get('name'):
@@ -145,13 +168,15 @@ class ServiceController(QObject):
                 self.show_error("Failed to add service. Please try again.")
                 
         except Exception as e:
-            print(f"Error in add_service: {e}")  # Debug log
+            print(f"❌ Error in add_service: {e}")
+            import traceback
+            traceback.print_exc()
             self.show_error(f"Error adding service: {str(e)}")
     
     def edit_service(self, service_data: dict):
         """Handle edit service request"""
         try:
-            print(f"Editing service: {service_data}")  # Debug log
+            print(f"✏️ Editing service: {service_data}")
             
             service_id = service_data.get('id')
             if not service_id:
@@ -192,6 +217,12 @@ class ServiceController(QObject):
             # Convert service_id to int
             service_id_int = int(service_id)
             
+            # Check if name is being changed and already exists
+            existing = ServiceModel.get_service_by_name(service_data['name'])
+            if existing and existing['id'] != service_id_int:
+                self.show_error(f"Service '{service_data['name']}' already exists.")
+                return
+            
             # Update service
             success = ServiceModel.update_service(service_id_int, {
                 'name': service_data['name'],
@@ -207,13 +238,15 @@ class ServiceController(QObject):
                 self.show_error("Failed to update service. Please try again.")
                 
         except Exception as e:
-            print(f"Error in edit_service: {e}")  # Debug log
+            print(f"❌ Error in edit_service: {e}")
+            import traceback
+            traceback.print_exc()
             self.show_error(f"Error updating service: {str(e)}")
     
     def delete_service(self, service_id: str):
         """Handle delete service request (soft delete)"""
         try:
-            print(f"Deleting service ID: {service_id}")  # Debug log
+            print(f"🗑️ Deleting service ID: {service_id}")
             
             # Convert service_id to int
             service_id_int = int(service_id)
@@ -222,6 +255,18 @@ class ServiceController(QObject):
             service = ServiceModel.find(service_id_int)
             if not service:
                 self.show_error("Service not found.")
+                return
+            
+            # Confirm deletion
+            reply = QMessageBox.question(
+                self.service_view,
+                "Confirm Delete",
+                f'Delete service "{service["name"]}"?\nThis will move it to deleted services.',
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            
+            if reply != QMessageBox.StandardButton.Yes:
                 return
             
             success = ServiceModel.delete_service(service_id_int)
@@ -233,13 +278,15 @@ class ServiceController(QObject):
                 self.show_error("Failed to delete service. Please try again.")
                 
         except Exception as e:
-            print(f"Error in delete_service: {e}")  # Debug log
+            print(f"❌ Error in delete_service: {e}")
+            import traceback
+            traceback.print_exc()
             self.show_error(f"Error deleting service: {str(e)}")
     
     def restore_service(self, service_data: dict):
         """Handle restore service request"""
         try:
-            print(f"Restoring service: {service_data}")  # Debug log
+            print(f"🔄 Restoring service: {service_data}")
             
             service_id = service_data.get('id')
             if not service_id:
@@ -260,7 +307,9 @@ class ServiceController(QObject):
                 self.show_error("Failed to restore service. Please try again.")
                 
         except Exception as e:
-            print(f"Error in restore_service: {e}")  # Debug log
+            print(f"❌ Error in restore_service: {e}")
+            import traceback
+            traceback.print_exc()
             self.show_error(f"Error restoring service: {str(e)}")
     
     # ==================== View Management ====================
@@ -268,7 +317,7 @@ class ServiceController(QObject):
     def refresh_service_view(self):
         """Refresh the main service view with latest data and filters"""
         try:
-            print(f"Refreshing service view with filter: {self.current_status_filter}, search: {self.current_search_text}")  # Debug log
+            print(f"🔄 Refreshing service view with filter: {self.current_status_filter}, search: {self.current_search_text}")
             
             # Apply search and status filter
             if self.current_search_text:
@@ -276,89 +325,114 @@ class ServiceController(QObject):
             else:
                 services = ServiceModel.get_all_with_details(self.current_status_filter)
             
-            print(f"Loaded {len(services)} services")  # Debug log
-            self.service_view.load_table(services)
+            print(f"📊 Loaded {len(services)} services")
+            if self.service_view:
+                self.service_view.load_table(services)
             
         except Exception as e:
-            print(f"Error in refresh_service_view: {e}")  # Debug log
-            self.show_error(f"Error loading services: {str(e)}")
+            print(f"❌ Error in refresh_service_view: {e}")
+            import traceback
+            traceback.print_exc()
+            if self.service_view:
+                self.service_view.show_message("Error", f"Error loading services: {str(e)}")
     
     def refresh_deleted_view(self, search_text: str = None):
         """Refresh the deleted services view with optional search"""
         try:
-            if search_text is None:
+            if search_text is None and self.deleted_view:
                 # Get current search text from view
                 search_text = self.deleted_view.get_search_text()
             
-            print(f"Refreshing deleted view with search: {search_text}")  # Debug log
+            print(f"🔄 Refreshing deleted view with search: {search_text}")
             
             if search_text:
                 deleted_services = ServiceModel.get_deleted_services(search_text)
             else:
                 deleted_services = ServiceModel.get_deleted_services()
             
-            print(f"Loaded {len(deleted_services)} deleted services")  # Debug log
-            self.deleted_view.load_table(deleted_services)
+            print(f"📊 Loaded {len(deleted_services)} deleted services")
+            if self.deleted_view:
+                self.deleted_view.load_table(deleted_services)
             
         except Exception as e:
-            print(f"Error in refresh_deleted_view: {e}")  # Debug log
-            self.show_error(f"Error loading deleted services: {str(e)}")
+            print(f"❌ Error in refresh_deleted_view: {e}")
+            import traceback
+            traceback.print_exc()
+            if self.deleted_view:
+                self.deleted_view.show_message("Error", f"Error loading deleted services: {str(e)}")
     
     def show_service_view(self):
         """Show the main service view and hide deleted view"""
-        print("Showing service view, hiding deleted view")  # Debug log
+        print("🖥️ Showing service view, hiding deleted view")
         self.refresh_service_view()
-        self.deleted_view.hide()
-        self.service_view.show()
-        self.service_view.raise_()  # Bring to front
+        if self.deleted_view:
+            self.deleted_view.hide()
+        if self.service_view:
+            self.service_view.show()
+            self.service_view.raise_()
     
     def show_deleted_view(self):
         """Show the deleted services view"""
-        print("Showing deleted view, hiding service view")  # Debug log
+        print("🖥️ Showing deleted view, hiding service view")
         self.refresh_deleted_view()
-        self.service_view.hide()
-        self.deleted_view.show()
-        self.deleted_view.raise_()  # Bring to front
+        if self.service_view:
+            self.service_view.hide()
+        if self.deleted_view:
+            self.deleted_view.show()
+            self.deleted_view.raise_()
     
     def go_back(self):
-        """Go back to main window and close all service views"""
-        print("Going back to main dashboard")  # Debug log
+        """Go back to main window - emit signal only, don't close"""
+        print("🔙 Going back to main dashboard")
         
-        # Close both views
+        # Confirm before going back
+        if self.service_view:
+            reply = QMessageBox.question(
+                self.service_view,
+                "Back to Dashboard",
+                "Are you sure you want to go back?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            
+            if reply == QMessageBox.StandardButton.Yes:
+                # Hide views first
+                if self.service_view:
+                    self.service_view.hide()
+                if self.deleted_view:
+                    self.deleted_view.hide()
+                
+                # Emit signal to main controller (main controller will handle showing dashboard)
+                self.back_to_main_requested.emit()
+                print("🔙 Service controller emitted back_to_main signal")
+    
+    def show_view(self):
+        """Show the main service view (entry point)"""
+        print("🖥️ Showing service view from controller")
+        self.refresh_service_view()
+        if self.service_view:
+            self.service_view.show()
+            self.service_view.raise_()
+    
+    def close(self):
+        """Close all views and clean up"""
+        print("🔒 Closing service controller")
         if self.service_view:
             self.service_view.close()
         if self.deleted_view:
             self.deleted_view.close()
-        
-        # Show main window if it exists
-        if self.main_window:
-            self.main_window.show()
-            self.main_window.raise_()
-        
-        # Emit signal for any additional cleanup
-        self.back_to_main_requested.emit()
     
     # ==================== Utility Methods ====================
     
     def show_message(self, title: str, message: str):
         """Show information message"""
-        QMessageBox.information(self.service_view, title, message)
+        if self.service_view:
+            QMessageBox.information(self.service_view, title, message)
     
     def show_error(self, message: str):
         """Show error message"""
-        QMessageBox.warning(self.service_view, "Error", message)
-    
-    def show_view(self):
-        """Show the main service view (entry point)"""
-        self.refresh_service_view()
-        self.service_view.show()
-    
-    def close(self):
-        """Close all views"""
         if self.service_view:
-            self.service_view.close()
-        if self.deleted_view:
-            self.deleted_view.close()
+            QMessageBox.warning(self.service_view, "Error", message)
 
 
 # ==================== Test Entry Point ====================
@@ -373,6 +447,7 @@ def test_controller():
         if not test_connection():
             print("❌ Database connection failed. Please check your MySQL configuration.")
             return
+        print("✅ Database connection successful!")
     except Exception as e:
         print(f"❌ Database test failed: {e}")
         return

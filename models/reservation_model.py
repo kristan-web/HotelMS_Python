@@ -139,6 +139,47 @@ class ReservationModel(BaseModel):
         return DatabaseQuery.fetch_all(query, (end_date, start_date))
     
     @classmethod
+    def get_total_revenue(cls) -> float:
+        """Get total revenue from all completed reservations"""
+        query = """
+            SELECT COALESCE(SUM(total_price), 0) as total
+            FROM reservations
+            WHERE status = 'CHECKED_OUT'
+        """
+        result = DatabaseQuery.fetch_one(query)
+        return float(result['total']) if result else 0.0
+    
+    @classmethod
+    def get_today_revenue(cls) -> float:
+        """Get revenue from today's completed reservations"""
+        today = date.today().strftime('%Y-%m-%d')
+        query = """
+            SELECT COALESCE(SUM(total_price), 0) as total
+            FROM reservations
+            WHERE status = 'CHECKED_OUT'
+            AND DATE(updated_at) = %s
+        """
+        result = DatabaseQuery.fetch_one(query, (today,))
+        return float(result['total']) if result else 0.0
+    
+    @classmethod
+    def get_stats(cls) -> Dict[str, Any]:
+        """Get reservation statistics"""
+        query = """
+            SELECT 
+                COUNT(*) as total_reservations,
+                SUM(CASE WHEN status = 'CONFIRMED' THEN 1 ELSE 0 END) as confirmed,
+                SUM(CASE WHEN status = 'CHECKED_IN' THEN 1 ELSE 0 END) as checked_in,
+                SUM(CASE WHEN status = 'CHECKED_OUT' THEN 1 ELSE 0 END) as checked_out,
+                SUM(CASE WHEN status = 'CANCELLED' THEN 1 ELSE 0 END) as cancelled,
+                COALESCE(SUM(CASE WHEN status = 'CHECKED_OUT' THEN total_price ELSE 0 END), 0) as total_revenue
+            FROM reservations
+            WHERE is_deleted = FALSE
+        """
+        result = DatabaseQuery.fetch_one(query)
+        return result or {}
+    
+    @classmethod
     def create_reservation(cls, data: Dict[str, Any], user_id: int) -> Optional[int]:
         """
         Create a new reservation
@@ -177,7 +218,8 @@ class ReservationModel(BaseModel):
             'check_out': data['check_out'],
             'total_price': total_price,
             'notes': data.get('notes', ''),
-            'status': 'CONFIRMED'
+            'status': 'CONFIRMED',
+            'is_deleted': 0
         }
         
         reservation_id = cls.create(insert_data)
@@ -437,22 +479,6 @@ class ReservationModel(BaseModel):
                 cls.update_reservation_total(result['reservation_id'])
         
         return success
-    
-    @classmethod
-    def get_stats(cls) -> Dict[str, Any]:
-        """Get reservation statistics"""
-        query = """
-            SELECT 
-                COUNT(*) as total_reservations,
-                SUM(CASE WHEN status = 'CONFIRMED' THEN 1 ELSE 0 END) as confirmed,
-                SUM(CASE WHEN status = 'CHECKED_IN' THEN 1 ELSE 0 END) as checked_in,
-                SUM(CASE WHEN status = 'CHECKED_OUT' THEN 1 ELSE 0 END) as checked_out,
-                SUM(CASE WHEN status = 'CANCELLED' THEN 1 ELSE 0 END) as cancelled,
-                COALESCE(SUM(total_price), 0) as total_revenue
-            FROM reservations
-        """
-        result = DatabaseQuery.fetch_one(query)
-        return result or {}
     
     @classmethod
     def get_today_reservations(cls) -> List[Dict[str, Any]]:

@@ -18,7 +18,7 @@ class GuestPanelView(QWidget):
     # Signal definitions for controller communication
     add_guest_requested = pyqtSignal(dict)      # guest data dict
     edit_guest_requested = pyqtSignal(dict)     # guest data dict with id
-    delete_guest_requested = pyqtSignal(str)    # guest_id
+    delete_guest_requested = pyqtSignal(str)    # guest_id - ADDED
     refresh_requested = pyqtSignal()
     clear_form_requested = pyqtSignal()
     
@@ -48,7 +48,7 @@ class GuestPanelView(QWidget):
     def _connect_signals(self):
         """Connect internal signals"""
         self.add_btn.clicked.connect(self.handle_add_guest)
-        self.delete_btn.clicked.connect(self.handle_delete_guest)
+        self.delete_btn.clicked.connect(self.handle_delete_guest)  # ADDED
         self.refresh_btn.clicked.connect(self.handle_refresh)
         self.clear_btn.clicked.connect(self.handle_clear_form)
         self.table.itemSelectionChanged.connect(self.fill_form_from_selection)
@@ -138,7 +138,7 @@ class GuestPanelView(QWidget):
         return panel
 
     def _build_action_sub_panel(self) -> QWidget:
-        """Build the Phone + Add/Clear buttons sub-panel."""
+        """Build the Phone + Add/Clear/Delete buttons sub-panel."""
         panel = QWidget()
         panel.setObjectName("action_panel")
         panel.setStyleSheet("""
@@ -176,7 +176,7 @@ class GuestPanelView(QWidget):
         layout.addWidget(self.phone_input)
         layout.addSpacing(12)
 
-        # Buttons row
+        # Buttons row (Add, Update, Clear, Delete)
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
 
@@ -194,10 +194,10 @@ class GuestPanelView(QWidget):
         """)
         self.add_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
 
-        self.clear_btn = QPushButton("Clear")
-        self.clear_btn.setFont(QFont("Segoe UI Semilight", 11, QFont.Weight.Bold))
-        self.clear_btn.setFixedHeight(35)
-        self.clear_btn.setStyleSheet("""
+        self.delete_btn = QPushButton("Delete")  # ADDED
+        self.delete_btn.setFont(QFont("Segoe UI Semilight", 11, QFont.Weight.Bold))
+        self.delete_btn.setFixedHeight(35)
+        self.delete_btn.setStyleSheet("""
             QPushButton {
                 background-color: #BE3455;
                 color: #FFE0E3;
@@ -206,9 +206,24 @@ class GuestPanelView(QWidget):
             }
             QPushButton:hover { background-color: #A02848; }
         """)
+        self.delete_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+
+        self.clear_btn = QPushButton("Clear")
+        self.clear_btn.setFont(QFont("Segoe UI Semilight", 11, QFont.Weight.Bold))
+        self.clear_btn.setFixedHeight(35)
+        self.clear_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #412B4E;
+                color: #FFE0E3;
+                border: none;
+                border-radius: 6px;
+            }
+            QPushButton:hover { background-color: #5A3D6B; }
+        """)
         self.clear_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
 
         btn_row.addWidget(self.add_btn)
+        btn_row.addWidget(self.delete_btn)  # ADDED
         btn_row.addWidget(self.clear_btn)
         layout.addLayout(btn_row)
         layout.addStretch()
@@ -233,23 +248,9 @@ class GuestPanelView(QWidget):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(8)
 
-        # ── Action buttons row ──────────────────────────────────────────────
+        # ── Action buttons row (Refresh only) ──────────────────────────────
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
-
-        self.delete_btn = QPushButton("Delete")
-        self.delete_btn.setFont(QFont("Segoe UI Semilight", 11, QFont.Weight.Bold))
-        self.delete_btn.setFixedSize(110, 34)
-        self.delete_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #BE3455;
-                color: #FFE0E3;
-                border: none;
-                border-radius: 6px;
-            }
-            QPushButton:hover { background-color: #A02848; }
-        """)
-        self.delete_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
 
         self.refresh_btn = QPushButton("Refresh")
         self.refresh_btn.setFont(QFont("Segoe UI Semilight", 11, QFont.Weight.Bold))
@@ -265,7 +266,6 @@ class GuestPanelView(QWidget):
         """)
         self.refresh_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
 
-        btn_row.addWidget(self.delete_btn)
         btn_row.addWidget(self.refresh_btn)
         btn_row.addStretch()
         layout.addLayout(btn_row)
@@ -347,16 +347,16 @@ class GuestPanelView(QWidget):
         else:
             self.add_guest_requested.emit(guest_data)
 
-    def handle_delete_guest(self):
-        """Emit delete_guest signal for selected row"""
+    def handle_delete_guest(self):  # ADDED
+        """Emit delete_guest signal for selected guest"""
         row = self.get_selected_row()
         if row >= 0:
-            guest_id = self.get_table_value(row, 0)
             guest_name = f"{self.get_table_value(row, 1)} {self.get_table_value(row, 2)}"
+            guest_id = self.get_table_value(row, 0)
             if self.confirm_delete(guest_name):
                 self.delete_guest_requested.emit(guest_id)
         else:
-            self.show_message("No Selection", "Please select a guest to delete.", "warning")
+            self.show_message("No Selection", "Please select a guest to delete.")
 
     def handle_refresh(self):
         """Emit refresh signal"""
@@ -454,6 +454,16 @@ class GuestPanelView(QWidget):
                                       Qt.AlignmentFlag.AlignLeft)
                 self.table.setItem(row, col, item)
 
+    def confirm_delete(self, name: str) -> bool:  # ADDED
+        """Show confirmation dialog for delete"""
+        reply = QMessageBox.question(
+            self, "Confirm Delete",
+            f'Delete guest "{name}"?',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        return reply == QMessageBox.StandardButton.Yes
+
     def show_message(self, title: str, message: str,
                      msg_type: str = "info"):
         if msg_type == "warning":
@@ -462,16 +472,6 @@ class GuestPanelView(QWidget):
             QMessageBox.critical(self, title, message)
         else:
             QMessageBox.information(self, title, message)
-
-    def confirm_delete(self, name: str) -> bool:
-        reply = QMessageBox.question(
-            self,
-            "Confirm Delete",
-            f'Delete guest "{name}"?\nThis will also remove all their reservations.',
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No
-        )
-        return reply == QMessageBox.StandardButton.Yes
 
 
 if __name__ == "__main__":

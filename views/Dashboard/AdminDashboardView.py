@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
     QWidget, QLabel, QPushButton, QHBoxLayout, QVBoxLayout,
     QFrame, QSizePolicy, QMessageBox
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QCursor, QPixmap
 
 
@@ -24,6 +24,11 @@ def load_icon(relative_path: str, w: int, h: int) -> QPixmap:
 
 
 class AdminDashboardView(QWidget):
+    
+    # ── SIGNALS FOR CONTROLLER COMMUNICATION ────────────────────────────────
+    reservation_clicked = pyqtSignal()  # Emitted when reservation card is clicked
+    service_clicked = pyqtSignal()      # Emitted when service card is clicked
+    
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Admin Dashboard")
@@ -277,6 +282,14 @@ class AdminDashboardView(QWidget):
         text_layout.addWidget(l2)
         layout.addLayout(text_layout)
         layout.addStretch()
+
+        # ── CONNECT CLICK EVENT TO EMIT SIGNAL ───────────────────────────────
+        # For reservation card
+        if line1 == "Reservation":
+            card.mousePressEvent = lambda event: self.reservation_clicked.emit()
+        # For service card
+        elif line1 == "Service":
+            card.mousePressEvent = lambda event: self.service_clicked.emit()
 
         return card
 

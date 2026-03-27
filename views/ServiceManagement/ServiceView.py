@@ -280,14 +280,14 @@ class ServiceView(QWidget):
         self.filter_changed.emit(status)
 
     def go_back(self):
-        """Emit back signal to controller and hide the view"""
+        """Emit back signal to controller (don't close/hide here)"""
+        print("🔙 ServiceView: back button clicked, emitting signal")
         self.back_requested.emit()
-        self.hide()  # Hide the view, controller will show AdminDashboard
 
     def view_deleted_services(self):
         """Emit signal to show deleted services view"""
+        print("📁 ServiceView: view deleted services clicked, emitting signal")
         self.show_deleted_requested.emit()
-        self.hide()  # Hide current view while showing deleted view
 
     def open_add_service(self):
         """Open add service dialog and emit data if accepted"""

@@ -180,9 +180,28 @@ class ServicesPanel(QWidget):
 
     def _styled_combo(self, items):
         c = QComboBox()
-        c.addItems(items)
+        if items:
+            c.addItems(items)
         c.setFixedHeight(35)
-        c.setStyleSheet(f"background-color: {self.INPUT_BG}; color: #2F2038; border-radius: 4px; padding-left: 5px;")
+        c.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {self.INPUT_BG};
+                color: #2F2038;
+                border-radius: 4px;
+                padding-left: 5px;
+            }}
+            QComboBox:focus {{
+                border: 1px solid {self.ACCENT_CRIMSON};
+            }}
+            QComboBox::drop-down {{
+                border: none;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {self.BG_CARD};
+                color: {self.TEXT_LAVENDER};
+                selection-background-color: {self.ACCENT_CRIMSON};
+            }}
+        """)
         return c
 
     def _action_button(self, t, color):
@@ -203,7 +222,7 @@ class ServicesPanel(QWidget):
     def handle_book(self):
         """Emit book_service signal with form data"""
         # Validate required fields
-        if not self.combo_guest.currentText():
+        if not self.combo_guest.currentData():
             self.show_error("Please select a guest.")
             return
         
@@ -262,21 +281,67 @@ class ServicesPanel(QWidget):
 
     # --- Public Methods ---
     def load_guests(self, guests: list):
-        """Load guests into combo box"""
+        """
+        Load guests into combo box
+        guests: list of dicts with keys: id, first_name, last_name OR id, name
+        """
         self.all_guests = guests
         self.combo_guest.clear()
-        for g in guests:
-            display_name = f"{g.get('first_name', '')} {g.get('last_name', '')}".strip()
-            self.combo_guest.addItem(display_name, g.get('id', g.get('guest_id')))
+        
+        # Store current selection to restore if possible
+        current_data = self.combo_guest.currentData()
+        selected_index = -1
+        
+        for idx, g in enumerate(guests):
+            # Handle both formats: with first_name/last_name OR with name
+            if 'first_name' in g and 'last_name' in g:
+                display_name = f"{g.get('first_name', '')} {g.get('last_name', '')}".strip()
+            elif 'name' in g:
+                display_name = g.get('name', '')
+            else:
+                display_name = "Unknown Guest"
+            
+            guest_id = g.get('id') or g.get('guest_id')
+            self.combo_guest.addItem(display_name, guest_id)
+            
+            # Track if this was the previously selected item
+            if current_data and guest_id == current_data:
+                selected_index = idx
+        
+        # Restore selection if possible
+        if selected_index >= 0:
+            self.combo_guest.setCurrentIndex(selected_index)
+        
+        print(f"📊 Loaded {len(guests)} guests into ServicesPanel combo")
+        
+        # If no guests, show placeholder
+        if len(guests) == 0:
+            self.combo_guest.addItem("No guests available", None)
+            self.combo_guest.setEnabled(False)
+        else:
+            self.combo_guest.setEnabled(True)
 
     def load_services(self, services: list):
-        """Load services into combo box"""
+        """
+        Load services into combo box
+        services: list of dicts with keys: id, name, price
+        """
         self.all_services = services
         self.combo_service.clear()
+        
         for s in services:
             self.combo_service.addItem(s.get('name', ''), s.get('id', s.get('service_id')))
             if s.get('price'):
                 self.current_service_price = float(s['price'])
+        
+        print(f"📊 Loaded {len(services)} services into ServicesPanel combo")
+        
+        # If no services, show placeholder
+        if len(services) == 0:
+            self.combo_service.addItem("No services available", None)
+            self.combo_service.setEnabled(False)
+        else:
+            self.combo_service.setEnabled(True)
 
     def load_bookings(self, bookings: list):
         """Load bookings into table"""
@@ -296,6 +361,8 @@ class ServicesPanel(QWidget):
                 item = QTableWidgetItem(str(value))
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
                 self.table.setItem(row, col, item)
+        
+        print(f"📊 Loaded {len(bookings)} bookings into ServicesPanel table")
 
     def load_data(self):
         """Legacy method for backward compatibility"""
@@ -357,6 +424,7 @@ class ServicesPanel(QWidget):
 
 
 if __name__ == "__main__":
+    from PyQt6.QtWidgets import QApplication
     app = QApplication(sys.argv)
     window = ServicesPanel()
     window.resize(1100, 750)

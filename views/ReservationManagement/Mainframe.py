@@ -9,7 +9,6 @@ from PyQt6.QtWidgets import (
     QTabWidget, QSizePolicy, QFrame, QMessageBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QFont, QCursor, QPixmap
 
 # ── FIXED IMPORTS ──────────────────────────────────────────────────────────
@@ -17,8 +16,6 @@ from views.ReservationManagement.ReservationPanel import ReservationPanel
 from views.ReservationManagement.GuestPanel import GuestPanelView
 from views.ReservationManagement.RoomPanel import RoomPanel
 from views.ReservationManagement.ServicesPanel import ServicesPanel
-
-
 
 
 # ── Helper to load and scale an image ───────────────────────────────────────
@@ -47,6 +44,9 @@ class MainFrameView(QWidget):
         self._build_ui()
         self._load_icons()
         self._connect_signals()
+        
+        # Track if this view has been shown before
+        self._has_been_shown = False
 
     def _load_icons(self):
         self.logo_label.setPixmap(load_icon("resources/admin_logo.jpg", 68, 68))
@@ -182,6 +182,20 @@ class MainFrameView(QWidget):
     def set_current_tab(self, index: int):
         """Set current tab by index"""
         self.main_tabs.setCurrentIndex(index)
+    
+    def showEvent(self, event):
+        """Called when the widget is shown"""
+        super().showEvent(event)
+        # Refresh data when shown (if controller exists)
+        if self.controller and hasattr(self.controller, 'refresh_all_data'):
+            print("🔄 Mainframe shown, refreshing data...")
+            self.controller.refresh_all_data()
+        self._has_been_shown = True
+    
+    def hideEvent(self, event):
+        """Called when the widget is hidden"""
+        super().hideEvent(event)
+        print("🔄 Mainframe hidden")
 
     def closeEvent(self, event):
         """Handle close event"""

@@ -25,7 +25,7 @@ class ReservationPanel(QWidget):
     confirm_reservation_requested = pyqtSignal(dict)  # reservation data
     check_in_requested = pyqtSignal(str)  # reservation_id
     check_out_requested = pyqtSignal(str)  # reservation_id
-    cancel_reservation_requested = pyqtSignal(str)  # reservation_id
+    cancel_reservation_requested = pyqtSignal(str)  # reservation_id - ADDED
     refresh_requested = pyqtSignal()
     filter_requested = pyqtSignal(str)  # status filter
     room_selected_requested = pyqtSignal(str)  # room_id - for total calculation
@@ -59,7 +59,7 @@ class ReservationPanel(QWidget):
         self.btn_confirm.clicked.connect(self.handle_confirm_reservation)
         self.btn_check_in.clicked.connect(self.handle_check_in)
         self.btn_check_out.clicked.connect(self.handle_check_out)
-        self.btn_cancel.clicked.connect(self.handle_cancel)
+        self.btn_cancel.clicked.connect(self.handle_cancel_reservation)  # ADDED
         self.btn_refresh.clicked.connect(self.handle_refresh)
         self.status_filter.currentTextChanged.connect(self.handle_filter)
         self.room_combo.currentIndexChanged.connect(self.handle_room_selected)
@@ -233,15 +233,15 @@ class ReservationPanel(QWidget):
         btn_row.addWidget(self.status_filter)
         btn_row.addSpacing(20)
 
-        # Action Buttons
+        # Action Buttons (Check In, Check Out, Cancel, Refresh)
         self.btn_check_in = self._action_button("Check In", "#412B4E")
         self.btn_check_out = self._action_button("Check Out", "#412B4E")
-        self.btn_cancel = self._action_button("Cancel", "#BE3455")
+        self.btn_cancel = self._action_button("Cancel", "#BE3455")  # ADDED
         self.btn_refresh = self._action_button("Refresh", "#412B4E")
 
         btn_row.addWidget(self.btn_check_in)
         btn_row.addWidget(self.btn_check_out)
-        btn_row.addWidget(self.btn_cancel)
+        btn_row.addWidget(self.btn_cancel)  # ADDED
         btn_row.addWidget(self.btn_refresh)
         btn_row.addStretch()
         
@@ -401,7 +401,8 @@ class ReservationPanel(QWidget):
         else:
             self.show_error("Please select a reservation.")
 
-    def handle_cancel(self):
+    def handle_cancel_reservation(self):  # ADDED
+        """Handle cancel reservation button click"""
         row = self.table.currentRow()
         if row >= 0:
             reservation_id_item = self.table.item(row, 0)
@@ -409,11 +410,11 @@ class ReservationPanel(QWidget):
                 reservation_id = reservation_id_item.text().strip()
                 if reservation_id:
                     status = self.get_table_value(row, 7)
-                    if status not in ["CHECKED_OUT", "CANCELLED"]:
-                        if self.confirm_action("Cancel Reservation", "Cancel this reservation?"):
+                    if status in ["CONFIRMED", "CHECKED_IN"]:
+                        if self.confirm_action("Cancel Reservation", "Are you sure you want to cancel this reservation?"):
                             self.cancel_reservation_requested.emit(reservation_id)
                     else:
-                        self.show_error(f"Cannot cancel {status} reservation")
+                        self.show_error(f"Cannot cancel reservation with status: {status}")
                 else:
                     self.show_error("Invalid reservation ID.")
             else:

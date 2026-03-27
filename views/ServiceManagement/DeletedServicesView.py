@@ -215,9 +215,10 @@ class DeletedServicesView(QWidget):
         self.search_changed.emit(text)
 
     def go_back(self):
-        """Navigate back to service management view and hide current view"""
+        """Navigate back to service management view - emit signal only"""
+        print("🔙 DeletedServicesView: back button clicked, emitting signal")
         self.back_requested.emit()
-        self.hide()  # Hide current view, controller will show ServiceView
+        # Note: Do NOT call self.hide() here - controller will handle hiding
 
     def restore_service(self):
         """Restore selected service - emit signal for controller"""
