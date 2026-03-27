@@ -11,7 +11,7 @@ from typing import Optional, Dict, Any, List
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from PyQt6.QtWidgets import QMessageBox, QApplication
-from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal, Qt
 
 from models.service_model import ServiceModel
 from views.ServiceManagement.ServiceView import ServiceView
@@ -26,6 +26,9 @@ class ServiceController(QObject):
     
     # Signal to notify main window
     back_to_main_requested = pyqtSignal()
+    # Signal to request switching views in stacked widget
+    switch_to_service_view = pyqtSignal()
+    switch_to_deleted_view = pyqtSignal()
     
     def __init__(self, main_window=None):
         super().__init__()
@@ -35,8 +38,9 @@ class ServiceController(QObject):
         self.current_status_filter = "ALL"
         self.current_search_text = ""
         self.is_initialized = False
+        self.current_view = "service"  # Track which view is currently active
         
-        # Initialize views
+        # Initialize views (with parent to be added to stacked widget)
         self._init_views()
         self._connect_signals()
         
@@ -46,23 +50,33 @@ class ServiceController(QObject):
         print("✅ Service controller initialized")
     
     def _init_views(self):
-        """Initialize all views"""
+        """Initialize all views WITH parent to be added to stacked widget"""
         try:
+            # Create ServiceView WITH parent (main_window/stacked_widget)
             self.service_view = ServiceView(self.main_window)
+            
+            # Create DeletedServicesView WITH parent
             self.deleted_view = DeletedServicesView(self.main_window)
             
-            # Set parent for proper window management
-            if self.main_window:
-                self.service_view.setParent(self.main_window)
-                self.deleted_view.setParent(self.main_window)
+            # Set the views to use their own stylesheets
+            if self.service_view:
+                self.service_view.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+                # Connect close event handler
+                self.service_view.destroyed.connect(self.on_view_closed)
+            if self.deleted_view:
+                self.deleted_view.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+                # Connect close event handler
+                self.deleted_view.destroyed.connect(self.on_view_closed)
             
-            # Connect deleted view back signal directly to controller method
-            # This ensures proper navigation without window destruction
+            # Connect deleted view back signal
             if self.deleted_view:
                 self.deleted_view.back_requested.connect(self.show_service_view)
             
-            # Initially hide deleted view
-            self.deleted_view.hide()
+            # Initially show service view, hide deleted view
+            if self.service_view:
+                self.service_view.setVisible(False)
+            if self.deleted_view:
+                self.deleted_view.setVisible(False)
             
             print("✅ Service views initialized")
         except Exception as e:
@@ -83,7 +97,7 @@ class ServiceController(QObject):
                 self.service_view.search_changed.connect(self.on_search_changed)
                 self.service_view.filter_changed.connect(self.on_filter_changed)
             
-            # DeletedServicesView signals - already connected in _init_views
+            # DeletedServicesView signals
             if self.deleted_view:
                 self.deleted_view.restore_requested.connect(self.restore_service)
                 self.deleted_view.search_changed.connect(self.on_deleted_search_changed)
@@ -91,6 +105,17 @@ class ServiceController(QObject):
             print("✅ Service signals connected")
         except Exception as e:
             print(f"❌ Error connecting service signals: {e}")
+    
+    def on_view_closed(self):
+        """Handle when a view is closed via X button"""
+        print("🔚 A view was closed, showing service view")
+        # Force show service view
+        if self.service_view:
+            self.service_view.setVisible(True)
+        if self.deleted_view:
+            self.deleted_view.setVisible(False)
+        self.current_view = "service"
+        self.switch_to_service_view.emit()
     
     # ==================== Search and Filter Functionality ====================
     
@@ -303,6 +328,11 @@ class ServiceController(QObject):
                 # Refresh both views after restore
                 self.refresh_service_view()
                 self.refresh_deleted_view()
+                # If we're on deleted view, stay there; otherwise show service view
+                if self.current_view == "deleted":
+                    self.show_deleted_view()
+                else:
+                    self.show_service_view()
             else:
                 self.show_error("Failed to restore service. Please try again.")
                 
@@ -364,22 +394,32 @@ class ServiceController(QObject):
     def show_service_view(self):
         """Show the main service view and hide deleted view"""
         print("🖥️ Showing service view, hiding deleted view")
+        self.current_view = "service"
         self.refresh_service_view()
         if self.deleted_view:
-            self.deleted_view.hide()
+            self.deleted_view.setVisible(False)
         if self.service_view:
-            self.service_view.show()
+            self.service_view.setVisible(True)
             self.service_view.raise_()
+            self.service_view.activateWindow()
+        
+        # Tell main controller to show this widget
+        self.switch_to_service_view.emit()
     
     def show_deleted_view(self):
         """Show the deleted services view"""
         print("🖥️ Showing deleted view, hiding service view")
+        self.current_view = "deleted"
         self.refresh_deleted_view()
         if self.service_view:
-            self.service_view.hide()
+            self.service_view.setVisible(False)
         if self.deleted_view:
-            self.deleted_view.show()
+            self.deleted_view.setVisible(True)
             self.deleted_view.raise_()
+            self.deleted_view.activateWindow()
+        
+        # Tell main controller to show this widget
+        self.switch_to_deleted_view.emit()
     
     def go_back(self):
         """Go back to main window - emit signal only, don't close"""
@@ -398,21 +438,18 @@ class ServiceController(QObject):
             if reply == QMessageBox.StandardButton.Yes:
                 # Hide views first
                 if self.service_view:
-                    self.service_view.hide()
+                    self.service_view.setVisible(False)
                 if self.deleted_view:
-                    self.deleted_view.hide()
+                    self.deleted_view.setVisible(False)
                 
-                # Emit signal to main controller (main controller will handle showing dashboard)
+                # Emit signal to main controller
                 self.back_to_main_requested.emit()
                 print("🔙 Service controller emitted back_to_main signal")
     
     def show_view(self):
         """Show the main service view (entry point)"""
         print("🖥️ Showing service view from controller")
-        self.refresh_service_view()
-        if self.service_view:
-            self.service_view.show()
-            self.service_view.raise_()
+        self.show_service_view()
     
     def close(self):
         """Close all views and clean up"""

@@ -200,15 +200,27 @@ class RoomModel(BaseModel):
         return cls.update(room_id, update_data)
     
     @classmethod
+    @classmethod
     def update_status(cls, room_id: int, status: str) -> bool:
         """Update room status"""
-        if status not in cls.STATUS_CHOICES:
-            raise ValueError(f"Status must be one of: {', '.join(cls.STATUS_CHOICES)}")
+        try:
+            if status not in cls.STATUS_CHOICES:
+                raise ValueError(f"Status must be one of: {', '.join(cls.STATUS_CHOICES)}")
         
-        # Ensure room_id is int
-        room_id_int = int(room_id)
+            # Ensure room_id is int
+            room_id_int = int(room_id)
         
-        return cls.update(room_id_int, {'status': status})
+            # Direct update query to see if it works
+            query = "UPDATE rooms SET status = %s WHERE room_id = %s"
+            result = DatabaseQuery.execute_write(query, (status, room_id_int))
+        
+            print(f"🔍 update_status - room_id: {room_id_int}, status: {status}, result: {result}")
+        
+            return result > 0
+        
+        except Exception as e:
+            print(f"❌ Error in update_status: {e}")
+            return False
     
     @classmethod
     def delete_room(cls, room_id: int) -> bool:
@@ -276,3 +288,17 @@ class RoomModel(BaseModel):
     def get_statuses(cls) -> List[str]:
         """Get list of statuses"""
         return cls.STATUS_CHOICES.copy()
+    
+    @staticmethod
+    def update_status(room_id: int, new_status: str) -> bool:
+        """Updates room status and returns True if no database error occurs"""
+        try:
+            from config.database import DatabaseQuery
+            query = "UPDATE rooms SET status = %s WHERE room_id = %s"
+            # We use execute_write here. 
+            # It returns the number of rows changed, but we just care if it doesn't crash.
+            DatabaseQuery.execute_write(query, (new_status, room_id))
+            return True
+        except Exception as e:
+            print(f"❌ Model Error: Could not update room status: {e}")
+            return False

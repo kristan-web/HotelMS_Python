@@ -38,9 +38,10 @@ class HotelManagementSystem:
     def __init__(self):
         print("🚀 Initializing application...")
         self.app = QApplication(sys.argv)
-        self.app.setStyle('Fusion')
         
-        # Set application-wide font
+        # REMOVED: self.app.setStyle('Fusion') - this was overriding custom styles
+        
+        # Set application-wide font (this doesn't affect colors)
         font = QFont("Segoe UI", 10)
         self.app.setFont(font)
         

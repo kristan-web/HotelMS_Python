@@ -40,7 +40,10 @@ class MainFrameView(QWidget):
         self.user_role = user_role
         self.controller = controller
         self.setWindowTitle("Hotel Management System - Reservation")
-        self.setMinimumSize(1400, 800)
+        # FIX: Changed minimum size from 1400,800 to 1000,650 to match main window
+        self.setMinimumSize(1000, 650)
+        # FIX: Added size policy to allow proper expansion
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._build_ui()
         self._load_icons()
         self._connect_signals()
@@ -66,6 +69,7 @@ class MainFrameView(QWidget):
         body = QWidget()
         body.setObjectName("body")
         body.setStyleSheet("QWidget#body { background-color: #2F2038; border: none; }")
+        # FIX: Added size policy to body widget
         body.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         body_layout = QVBoxLayout(body)
@@ -75,6 +79,7 @@ class MainFrameView(QWidget):
         # ── TAB WIDGET ─────────────────────────────────────────────────────
         self.main_tabs = QTabWidget()
         self.main_tabs.setObjectName("main_tabs")
+        # FIX: Added size policy to tab widget
         self.main_tabs.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         
         self.main_tabs.setStyleSheet("""

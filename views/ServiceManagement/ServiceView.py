@@ -67,13 +67,13 @@ class ServiceView(QWidget):
         self.add_btn.setFixedHeight(42)
         self.add_btn.setStyleSheet("""
             QPushButton {
-                background-color: #BE3455;
-                color: #FFE0E3;
-                border: none;
-                border-radius: 6px;
-                padding: 0px 20px;
+                background-color: #BE3455 !important;
+                color: #FFE0E3 !important;
+                border: none !important;
+                border-radius: 6px !important;
+                padding: 0px 20px !important;
             }
-            QPushButton:hover { background-color: #A02848; }
+            QPushButton:hover { background-color: #A02848 !important; }
         """)
         self.add_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.add_btn.clicked.connect(self.open_add_service)
@@ -85,7 +85,7 @@ class ServiceView(QWidget):
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
         sep.setFixedHeight(2)
-        sep.setStyleSheet("background-color: #412B4E; border: none;")
+        sep.setStyleSheet("background-color: #412B4E !important; border: none !important;")
         root.addWidget(sep)
 
         # ── TABLE PANEL ────────────────────────────────────────────────────
@@ -93,9 +93,9 @@ class ServiceView(QWidget):
         table_panel.setObjectName("svc_table_panel")
         table_panel.setStyleSheet("""
             QWidget#svc_table_panel {
-                background-color: #3D2850;
-                border: 2px solid #412B4E;
-                border-radius: 6px;
+                background-color: #3D2850 !important;
+                border: 2px solid #412B4E !important;
+                border-radius: 6px !important;
             }
         """)
         table_panel.setSizePolicy(
@@ -116,13 +116,13 @@ class ServiceView(QWidget):
         self.search_input.setFixedHeight(32)
         self.search_input.setStyleSheet("""
             QLineEdit {
-                background-color: #F9F5FF;
-                color: #2F2038;
-                border: 1px solid #A797A5;
-                border-radius: 4px;
-                padding: 2px 10px;
+                background-color: #F9F5FF !important;
+                color: #2F2038 !important;
+                border: 1px solid #A797A5 !important;
+                border-radius: 4px !important;
+                padding: 2px 10px !important;
             }
-            QLineEdit:focus { border: 1px solid #BE3455; }
+            QLineEdit:focus { border: 1px solid #BE3455 !important; }
         """)
         self.search_input.textChanged.connect(self.on_search_changed)
         filter_row.addWidget(self.search_input, stretch=2)
@@ -130,7 +130,7 @@ class ServiceView(QWidget):
         # Status filter
         status_label = QLabel("Status:")
         status_label.setFont(QFont("Segoe UI Semilight", 11))
-        status_label.setStyleSheet("color: #FFE0E3; background: transparent;")
+        status_label.setStyleSheet("color: #FFE0E3 !important; background: transparent !important;")
         filter_row.addWidget(status_label)
 
         self.status_filter = QComboBox()
@@ -140,18 +140,18 @@ class ServiceView(QWidget):
         self.status_filter.setFixedWidth(120)
         self.status_filter.setStyleSheet("""
             QComboBox {
-                background-color: #F9F5FF;
-                color: #2F2038;
-                border: 1px solid #A797A5;
-                border-radius: 4px;
-                padding: 2px 8px;
+                background-color: #F9F5FF !important;
+                color: #2F2038 !important;
+                border: 1px solid #A797A5 !important;
+                border-radius: 4px !important;
+                padding: 2px 8px !important;
             }
-            QComboBox:focus { border: 1px solid #BE3455; }
-            QComboBox::drop-down { border: none; }
+            QComboBox:focus { border: 1px solid #BE3455 !important; }
+            QComboBox::drop-down { border: none !important; }
             QComboBox QAbstractItemView {
-                background-color: #3D2850;
-                color: #FFE0E3;
-                selection-background-color: #BE3455;
+                background-color: #3D2850 !important;
+                color: #FFE0E3 !important;
+                selection-background-color: #BE3455 !important;
             }
         """)
         self.status_filter.currentTextChanged.connect(self.on_filter_changed)
@@ -167,10 +167,10 @@ class ServiceView(QWidget):
             "Duration (mins.)", "Status", "Actions"
         ])
         self.table.setColumnHidden(0, True)
-        self.table.setFont(QFont("Segoe UI Semilight", 11)) 
+        self.table.setFont(QFont("Segoe UI Semilight", 11))
         self.table.verticalHeader().setDefaultSectionSize(40)
         self.table.verticalHeader().setVisible(True)
-        self.table.verticalHeader().setStyleSheet("background-color: #412B4E;")
+        self.table.verticalHeader().setStyleSheet("background-color: #412B4E !important;")
         self.table.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(
@@ -187,42 +187,41 @@ class ServiceView(QWidget):
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.table.setStyleSheet("""
             QTableWidget {
-                background-color: #3D2850;
-                color: #F2F2F2;
-                border: none;
-                gridline-color: #412B4E;
+                background-color: #3D2850 !important;
+                color: #F2F2F2 !important;
+                border: none !important;
+                gridline-color: #412B4E !important;
             }
             QTableWidget::item:selected {
-                background-color: #BE3455;
-                color: #FFE0E3;
+                background-color: #BE3455 !important;
+                color: #FFE0E3 !important;
             }
             QTableWidget::item:hover {
-                background-color: #BE3455;
-                color: #FFE0E3;
+                background-color: #5A3D6B !important;
             }
             QHeaderView::section {
-                background-color: #412B4E;
-                color: #FFE0E3;
-                font-weight: bold;
-                padding: 6px;
-                border: none;
-                border-right: 1px solid #2F2038;
-                border-bottom: 1px solid #2F2038;
+                background-color: #412B4E !important;
+                color: #FFE0E3 !important;
+                font-weight: bold !important;
+                padding: 6px !important;
+                border: none !important;
+                border-right: 1px solid #2F2038 !important;
+                border-bottom: 1px solid #2F2038 !important;
             }
             QTableCornerButton::section {
-                background-color: #412B4E;
-                border: none;
-                border-right: 1px solid #2F2038;
-                border-bottom: 1px solid #2F2038;
+                background-color: #412B4E !important;
+                border: none !important;
+                border-right: 1px solid #2F2038 !important;
+                border-bottom: 1px solid #2F2038 !important;
             }
             QScrollBar:vertical {
-                background: #2F2038;
-                width: 8px;
-                border-radius: 4px;
+                background: #2F2038 !important;
+                width: 8px !important;
+                border-radius: 4px !important;
             }
             QScrollBar::handle:vertical {
-                background: #412B4E;
-                border-radius: 4px;
+                background: #412B4E !important;
+                border-radius: 4px !important;
             }
         """)
         
@@ -239,13 +238,13 @@ class ServiceView(QWidget):
         self.back_btn.setFixedHeight(42)
         self.back_btn.setStyleSheet("""
             QPushButton {
-                background-color: #412B4E;
-                color: #FFE0E3;
-                border: none;
-                border-radius: 6px;
-                padding: 0px 16px;
+                background-color: #412B4E !important;
+                color: #FFE0E3 !important;
+                border: none !important;
+                border-radius: 6px !important;
+                padding: 0px 16px !important;
             }
-            QPushButton:hover { background-color: #5A3D6B; }
+            QPushButton:hover { background-color: #5A3D6B !important; }
         """)
         self.back_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.back_btn.clicked.connect(self.go_back)
@@ -255,13 +254,13 @@ class ServiceView(QWidget):
         self.deleted_btn.setFixedHeight(42)
         self.deleted_btn.setStyleSheet("""
             QPushButton {
-                background-color: #7B2D3E;
-                color: #FFE0E3;
-                border: none;
-                border-radius: 6px;
-                padding: 0px 16px;
+                background-color: #7B2D3E !important;
+                color: #FFE0E3 !important;
+                border: none !important;
+                border-radius: 6px !important;
+                padding: 0px 16px !important;
             }
-            QPushButton:hover { background-color: #A02848; }
+            QPushButton:hover { background-color: #A02848 !important; }
         """)
         self.deleted_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.deleted_btn.clicked.connect(self.view_deleted_services)
@@ -306,7 +305,7 @@ class ServiceView(QWidget):
         cell_widget = QWidget()
         cell_widget.setObjectName("row_btn_widget")
         cell_widget.setStyleSheet(
-            "QWidget#row_btn_widget { background-color: #3D2850; border: none; }")
+            "QWidget#row_btn_widget { background-color: #3D2850 !important; border: none !important; }")
 
         layout = QHBoxLayout(cell_widget)
         layout.setContentsMargins(4, 4, 4, 4)
@@ -317,13 +316,13 @@ class ServiceView(QWidget):
         edit_btn.setFont(QFont("Segoe UI Semilight", 9, QFont.Weight.Bold))
         edit_btn.setStyleSheet("""
             QPushButton {
-                background-color: #412B4E;
-                color: #FFE0E3;
-                border: none;
-                border-radius: 4px;
-                padding: 0 8px;
+                background-color: #412B4E !important;
+                color: #FFE0E3 !important;
+                border: none !important;
+                border-radius: 4px !important;
+                padding: 0 8px !important;
             }
-            QPushButton:hover { background-color: #5A3D6B; }
+            QPushButton:hover { background-color: #5A3D6B !important; }
         """)
         edit_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         edit_btn.clicked.connect(lambda _, r=row: self.open_edit_service(r))
@@ -333,13 +332,13 @@ class ServiceView(QWidget):
         del_btn.setFont(QFont("Segoe UI Semilight", 9, QFont.Weight.Bold))
         del_btn.setStyleSheet("""
             QPushButton {
-                background-color: #BE3455;
-                color: #FFE0E3;
-                border: none;
-                border-radius: 4px;
-                padding: 0 8px;
+                background-color: #BE3455 !important;
+                color: #FFE0E3 !important;
+                border: none !important;
+                border-radius: 4px !important;
+                padding: 0 8px !important;
             }
-            QPushButton:hover { background-color: #A02848; }
+            QPushButton:hover { background-color: #A02848 !important; }
         """)
         del_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         del_btn.clicked.connect(lambda _, r=row: self.confirm_and_delete(r))

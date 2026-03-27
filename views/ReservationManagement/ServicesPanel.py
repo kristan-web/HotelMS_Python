@@ -19,6 +19,7 @@ class ServicesPanel(QWidget):
     
     def __init__(self):
         super().__init__()
+        print("🟢 ServicesPanel.__init__ called")
         
         # Match the expanding policy
         self.setSizePolicy(self.sizePolicy().Policy.Expanding, self.sizePolicy().Policy.Expanding)
@@ -139,7 +140,8 @@ class ServicesPanel(QWidget):
         self.table.setColumnCount(7)
         self.table.setHorizontalHeaderLabels(["ID", "Guest", "Service", "Scheduled", "Duration", "Total", "Status"])
         self.table.setColumnHidden(0, True)
-        self.table.verticalHeader().setVisible(False)
+        self.table.verticalHeader().setVisible(True)
+        self.table.verticalHeader().setStyleSheet("background-color: #412B4E !important;")
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
@@ -153,8 +155,17 @@ class ServicesPanel(QWidget):
             QHeaderView::section {{
                 background-color: {self.BORDER_COLOR}; color: {self.TEXT_LAVENDER};
                 font-weight: bold; border: none; padding: 6px;
+                border-right: 1px solid #2F2038;
+                border-bottom: 1px solid #2F2038;
+            }}
+            QTableCornerButton::section {{
+                background-color: {self.BORDER_COLOR};
+                border: none;
+                border-right: 1px solid #2F2038;
+                border-bottom: 1px solid #2F2038;
             }}
             QTableWidget::item:selected {{ background-color: {self.ACCENT_CRIMSON}; color: {self.TEXT_LAVENDER}; }}
+            QTableWidget::item:hover {{ background-color: #5A3D6B; }}
         """)
         
         layout.addWidget(self.table)
@@ -218,15 +229,26 @@ class ServicesPanel(QWidget):
         """)
         return b
 
+    def _get_service_by_id(self, service_id):
+        """Get service details by ID"""
+        for s in self.all_services:
+            if s.get('id') == service_id or s.get('service_id') == service_id:
+                return s
+        return None
+
     # --- Event Handlers (Emit Signals) ---
     def handle_book(self):
         """Emit book_service signal with form data"""
+        print("🔵 ServicesPanel.handle_book called")
+        
         # Validate required fields
-        if not self.combo_guest.currentData():
+        guest_id = self.combo_guest.currentData()
+        if not guest_id:
             self.show_error("Please select a guest.")
             return
         
-        if not self.combo_service.currentText():
+        service_id = self.combo_service.currentData()
+        if not service_id:
             self.show_error("Please select a service.")
             return
         
@@ -243,13 +265,25 @@ class ServicesPanel(QWidget):
             self.show_error("Duration must be a valid number.")
             return
         
+        # Calculate total properly
+        service = self._get_service_by_id(service_id)
+        if not service:
+            self.show_error("Service not found.")
+            return
+        
+        unit_price = float(service['price'])
+        total = unit_price
+        
         booking_data = {
-            'guest_id': self.combo_guest.currentData(),
-            'service_id': self.combo_service.currentData(),
-            'duration': self.txt_duration.text(),
+            'guest_id': guest_id,
+            'service_id': service_id,
+            'duration': duration,
             'scheduled_time': self.scheduled_time.text(),
-            'total': self.lbl_total.text().replace("Total: ₱", "").replace(",", "")
+            'total': total,
+            'unit_price': unit_price
         }
+        
+        print(f"📝 Emitting book_service_requested with: {booking_data}")
         self.book_service_requested.emit(booking_data)
 
     def handle_delete(self):
@@ -271,7 +305,13 @@ class ServicesPanel(QWidget):
         """Emit signal to calculate total when service changes"""
         service_id = self.combo_service.currentData()
         if service_id:
-            self.calculate_total_requested.emit(str(service_id))
+            duration_text = self.txt_duration.text()
+            if duration_text and duration_text.isdigit() and int(duration_text) > 0:
+                self.calculate_total_requested.emit(str(service_id))
+            else:
+                service = self._get_service_by_id(service_id)
+                if service:
+                    self.lbl_total.setText(f"Total: ₱{float(service['price']):,.2f}")
 
     def handle_duration_changed(self, duration):
         """Emit signal to calculate total when duration changes"""
@@ -283,38 +323,34 @@ class ServicesPanel(QWidget):
     def load_guests(self, guests: list):
         """
         Load guests into combo box
-        guests: list of dicts with keys: id, first_name, last_name OR id, name
+        guests: list of dicts with keys: id, first_name, last_name
         """
+        print(f"🟢 ServicesPanel.load_guests called with {len(guests)} guests")
         self.all_guests = guests
         self.combo_guest.clear()
         
-        # Store current selection to restore if possible
         current_data = self.combo_guest.currentData()
         selected_index = -1
         
         for idx, g in enumerate(guests):
-            # Handle both formats: with first_name/last_name OR with name
-            if 'first_name' in g and 'last_name' in g:
-                display_name = f"{g.get('first_name', '')} {g.get('last_name', '')}".strip()
-            elif 'name' in g:
-                display_name = g.get('name', '')
-            else:
+            guest_id = g.get('id') or g.get('guest_id')
+            first_name = g.get('first_name', '')
+            last_name = g.get('last_name', '')
+            display_name = f"{first_name} {last_name}".strip()
+            
+            if not display_name:
                 display_name = "Unknown Guest"
             
-            guest_id = g.get('id') or g.get('guest_id')
             self.combo_guest.addItem(display_name, guest_id)
             
-            # Track if this was the previously selected item
             if current_data and guest_id == current_data:
                 selected_index = idx
         
-        # Restore selection if possible
         if selected_index >= 0:
             self.combo_guest.setCurrentIndex(selected_index)
         
         print(f"📊 Loaded {len(guests)} guests into ServicesPanel combo")
         
-        # If no guests, show placeholder
         if len(guests) == 0:
             self.combo_guest.addItem("No guests available", None)
             self.combo_guest.setEnabled(False)
@@ -326,17 +362,18 @@ class ServicesPanel(QWidget):
         Load services into combo box
         services: list of dicts with keys: id, name, price
         """
+        print(f"🟢 ServicesPanel.load_services called with {len(services)} services")
         self.all_services = services
         self.combo_service.clear()
         
         for s in services:
-            self.combo_service.addItem(s.get('name', ''), s.get('id', s.get('service_id')))
+            service_id = s.get('id') or s.get('service_id')
+            self.combo_service.addItem(s.get('name', ''), service_id)
             if s.get('price'):
                 self.current_service_price = float(s['price'])
         
         print(f"📊 Loaded {len(services)} services into ServicesPanel combo")
         
-        # If no services, show placeholder
         if len(services) == 0:
             self.combo_service.addItem("No services available", None)
             self.combo_service.setEnabled(False)
@@ -345,6 +382,7 @@ class ServicesPanel(QWidget):
 
     def load_bookings(self, bookings: list):
         """Load bookings into table"""
+        print(f"🟢 ServicesPanel.load_bookings called with {len(bookings)} bookings")
         self.static_bookings = bookings
         self.table.setRowCount(0)
         for b in bookings:
