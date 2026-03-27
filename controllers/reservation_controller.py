@@ -38,7 +38,7 @@ class ReservationController(QObject):
         super().__init__()
         self.main_window = main_window
         self.user_role = user_role
-        self.user_id = user_id  # Store user_id from main controller
+        self.user_id = user_id
         self.is_initialized = False
         
         # Views
@@ -51,13 +51,14 @@ class ReservationController(QObject):
         # Data cache
         self.current_reservation_filter = "ALL"
         
-        # Initialize views (lazy - only create when needed)
+        # Initialize views
         self._init_views()
         self._connect_signals()
         
         # Load initial data
         self.refresh_all_data()
         self.is_initialized = True
+        print("✅ Reservation controller initialized")
     
     def _init_views(self):
         """Initialize all views"""
@@ -67,24 +68,30 @@ class ReservationController(QObject):
             self.guest_panel = GuestPanelView()
             self.room_panel = RoomPanel()
             self.services_panel = ServicesPanel()
-            
-            # Set parent for proper window management
+            print(f"✅ RoomPanel created in controller: {self.room_panel}")
+            print(f"✅ RoomPanel instance id in controller: {id(self.room_panel)}")
+        
+            # Set parent
             if self.main_window:
                 self.mainframe.setParent(self.main_window)
-            
-            # Add tabs to mainframe
+        
+            # Add tabs
             self.mainframe.add_tab(self.reservation_panel, "RESERVATIONS")
             self.mainframe.add_tab(self.guest_panel, "GUESTS")
             self.mainframe.add_tab(self.room_panel, "ROOMS")
-            
+        
             # Add ServicesPanel only for Admin users
+            print(f"🔍 user_role: {self.user_role}")
             if self.user_role == "Admin":
                 self.mainframe.add_tab(self.services_panel, "SERVICES")
-            
+                print("✅ ServicesPanel added to mainframe")
+            else:
+                print(f"⚠️ ServicesPanel NOT added - user_role: {self.user_role}")
+        
             print("✅ Reservation views initialized")
         except Exception as e:
             print(f"❌ Error initializing reservation views: {e}")
-            import traceback
+            import traceback    
             traceback.print_exc()
     
     def _connect_signals(self):
@@ -96,6 +103,7 @@ class ReservationController(QObject):
             
             # ReservationPanel signals
             if self.reservation_panel:
+                print("✅ Connecting ReservationPanel signals...")
                 self.reservation_panel.find_rooms_requested.connect(self.on_find_rooms)
                 self.reservation_panel.confirm_reservation_requested.connect(self.on_confirm_reservation)
                 self.reservation_panel.check_in_requested.connect(self.on_check_in)
@@ -108,6 +116,7 @@ class ReservationController(QObject):
             
             # GuestPanel signals
             if self.guest_panel:
+                print("✅ Connecting GuestPanel signals...")
                 self.guest_panel.add_guest_requested.connect(self.on_add_guest)
                 self.guest_panel.edit_guest_requested.connect(self.on_edit_guest)
                 self.guest_panel.delete_guest_requested.connect(self.on_delete_guest)
@@ -115,24 +124,33 @@ class ReservationController(QObject):
                 self.guest_panel.clear_form_requested.connect(self.on_clear_guest_form)
             
             # RoomPanel signals
+            # RoomPanel signals
             if self.room_panel:
+                print("✅ Connecting RoomPanel signals...")
+                print(f"   - room_panel instance id in controller: {id(self.room_panel)}")
                 self.room_panel.add_room_requested.connect(self.on_add_room)
                 self.room_panel.edit_room_requested.connect(self.on_edit_room)
-                self.room_panel.delete_room_requested.connect(self.on_delete_room)
+                # REMOVED: self.room_panel.delete_room_requested.connect(self.on_delete_room)
                 self.room_panel.update_status_requested.connect(self.on_update_room_status)
+                print("   - update_status_requested connected")
                 self.room_panel.refresh_requested.connect(self.refresh_rooms)
                 self.room_panel.clear_form_requested.connect(self.on_clear_room_form)
             
             # ServicesPanel signals
             if self.services_panel:
+                print(f"✅ Connecting ServicesPanel signals...")
                 self.services_panel.book_service_requested.connect(self.on_book_service)
                 self.services_panel.delete_booking_requested.connect(self.on_delete_service_booking)
                 self.services_panel.refresh_requested.connect(self.refresh_services_panel)
                 self.services_panel.calculate_total_requested.connect(self.on_calculate_service_total)
+            else:
+                print("❌ services_panel is None! Cannot connect signals.")
             
             print("✅ Reservation signals connected")
         except Exception as e:
             print(f"❌ Error connecting reservation signals: {e}")
+            import traceback
+            traceback.print_exc()
     
     # ==================== Data Loading Methods ====================
     
@@ -191,17 +209,32 @@ class ReservationController(QObject):
     def refresh_services_panel(self):
         """Refresh services panel data"""
         try:
+            print("🔄 Refreshing services panel...")
             # Load guests for combo
-            guests = GuestModel.get_all_for_combo()
+            guests = GuestModel.get_all_active()
             if self.services_panel:
-                self.services_panel.load_guests(guests)
-                print(f"📊 Loaded {len(guests)} guests for services panel")
+                formatted_guests = []
+                for g in guests:
+                    formatted_guests.append({
+                        'id': g.get('id', g.get('guest_id')),
+                        'first_name': g.get('first_name', ''),
+                        'last_name': g.get('last_name', '')
+                    })
+                self.services_panel.load_guests(formatted_guests)
+                print(f"📊 Loaded {len(formatted_guests)} guests for services panel")
             
             # Load services for combo
             services = ServiceModel.get_all_active()
             if self.services_panel:
-                self.services_panel.load_services(services)
-                print(f"📊 Loaded {len(services)} services for services panel")
+                formatted_services = []
+                for s in services:
+                    formatted_services.append({
+                        'id': s.get('id', s.get('service_id')),
+                        'name': s.get('name', ''),
+                        'price': s.get('price', 0)
+                    })
+                self.services_panel.load_services(formatted_services)
+                print(f"📊 Loaded {len(formatted_services)} services for services panel")
             
             # Load bookings (reservation_services)
             bookings = self._get_all_service_bookings()
@@ -234,13 +267,34 @@ class ReservationController(QObject):
         try:
             services = ServiceModel.get_all_active()
             if self.services_panel:
-                self.services_panel.load_services(services)
+                formatted_services = []
+                for s in services:
+                    formatted_services.append({
+                        'id': s.get('id', s.get('service_id')),
+                        'name': s.get('name', ''),
+                        'price': s.get('price', 0)
+                    })
+                self.services_panel.load_services(formatted_services)
         except Exception as e:
             print(f"❌ Error loading service combo: {e}")
     
     def _get_all_service_bookings(self) -> List[Dict]:
         """Get all service bookings from reservation_services"""
         try:
+            # Check if table exists first
+            check_table = """
+                SELECT COUNT(*) as count 
+                FROM information_schema.tables 
+                WHERE table_schema = 'hotel_ms' 
+                AND table_name = 'reservation_services'
+            """
+            from config.database import DatabaseQuery
+            table_exists = DatabaseQuery.fetch_one(check_table)
+            
+            if not table_exists or table_exists.get('count', 0) == 0:
+                # Table doesn't exist yet, return empty list
+                return []
+            
             query = """
                 SELECT 
                     rs.res_service_id as booking_id,
@@ -258,7 +312,6 @@ class ReservationController(QObject):
                 ORDER BY rs.created_at DESC
                 LIMIT 100
             """
-            from config.database import DatabaseQuery
             return DatabaseQuery.fetch_all(query)
         except Exception as e:
             print(f"❌ Error getting service bookings: {e}")
@@ -273,7 +326,6 @@ class ReservationController(QObject):
             
             print(f"🔍 Found {len(rooms)} available rooms for {check_in} to {check_out}")
             
-            # Format rooms for display in combo box
             formatted_rooms = []
             for r in rooms:
                 formatted_rooms.append({
@@ -298,10 +350,8 @@ class ReservationController(QObject):
     def on_confirm_reservation(self, reservation_data: dict):
         """Confirm and create reservation"""
         try:
-            # Use user_id from main controller (or default to 1 if not set)
             user_id = self.user_id if self.user_id else 1
             
-            # Extract and validate data
             guest_id = reservation_data.get('guest_id')
             room_id = reservation_data.get('room_id')
             check_in = reservation_data.get('check_in')
@@ -318,7 +368,6 @@ class ReservationController(QObject):
                 self.show_error("Please select check-in and check-out dates.")
                 return
             
-            # Create reservation data dict
             data = {
                 'guest_id': guest_id,
                 'room_id': room_id,
@@ -425,13 +474,11 @@ class ReservationController(QObject):
             check_out = self.reservation_panel.check_out_date
             
             if not check_in or not check_out:
-                # If dates aren't selected yet, just show room price
                 room = RoomModel.find(int(room_id))
                 if room:
                     total = float(room['price'])
                     self.reservation_panel.set_total(f"{total:,.2f}")
             else:
-                # Calculate total based on room price and nights
                 nights = (check_out - check_in).days
                 if nights > 0:
                     room = RoomModel.find(int(room_id))
@@ -462,7 +509,6 @@ class ReservationController(QObject):
     def on_add_guest(self, guest_data: dict):
         """Add new guest"""
         try:
-            # Validate required fields
             if not all([guest_data.get('first_name'), guest_data.get('last_name'), 
                        guest_data.get('email'), guest_data.get('phone'), guest_data.get('address')]):
                 self.show_error("All fields are required")
@@ -476,6 +522,7 @@ class ReservationController(QObject):
                     self.guest_panel.clear_form()
                 self.refresh_guests()
                 self.load_guest_combo()
+                self.refresh_services_panel()
             else:
                 self.show_error("Failed to add guest")
                 
@@ -501,6 +548,7 @@ class ReservationController(QObject):
                     self.guest_panel.clear_form()
                 self.refresh_guests()
                 self.load_guest_combo()
+                self.refresh_services_panel()
             else:
                 self.show_error("Failed to update guest")
                 
@@ -519,6 +567,7 @@ class ReservationController(QObject):
                 self.show_message("Success", "Guest deleted successfully!")
                 self.refresh_guests()
                 self.load_guest_combo()
+                self.refresh_services_panel()
             else:
                 self.show_error("Failed to delete guest")
                     
@@ -537,6 +586,7 @@ class ReservationController(QObject):
     
     def on_add_room(self, room_data: dict):
         """Add new room"""
+        print(f"🔴🔴🔴 CONTROLLER RECEIVED add_room: {room_data}")
         try:
             room_id = RoomModel.create_room(room_data)
             
@@ -547,13 +597,17 @@ class ReservationController(QObject):
                 self.show_error("Failed to add room")
                 
         except ValueError as e:
+            print(f"❌ ValueError: {e}")
             self.show_error(str(e))
         except Exception as e:
             print(f"❌ Error adding room: {e}")
+            import traceback
+            traceback.print_exc()
             self.show_error("Failed to add room")
     
     def on_edit_room(self, room_data: dict):
         """Edit existing room"""
+        print(f"🔴🔴🔴 CONTROLLER RECEIVED edit_room: {room_data}")
         try:
             room_id = room_data.get('id')
             if not room_id:
@@ -569,9 +623,12 @@ class ReservationController(QObject):
                 self.show_error("Failed to update room")
                 
         except ValueError as e:
+            print(f"❌ ValueError: {e}")
             self.show_error(str(e))
         except Exception as e:
             print(f"❌ Error editing room: {e}")
+            import traceback
+            traceback.print_exc()
             self.show_error("Failed to update room")
     
     def on_delete_room(self, room_id: str):
@@ -592,24 +649,30 @@ class ReservationController(QObject):
             self.show_error("Failed to delete room")
     
     def on_update_room_status(self, room_id: str, new_status: str):
-        """Update room status"""
+        """Update room status using the RoomModel"""
+        print(f"🔴🔴🔴 CONTROLLER RECEIVED update_status: room_id={room_id}, new_status={new_status}")
         try:
-            success = RoomModel.update_status(int(room_id), new_status)
-            
+        # 1. Use the Model's update method
+        # We pass a dictionary of just the fields we want to change
+            success = RoomModel.update_room(int(room_id), {'status': new_status})
+        
             if success:
+                print(f"✅ SUCCESS: Room {room_id} is now {new_status}")
                 self.show_message("Success", f"Room status updated to '{new_status}'!")
                 self.refresh_rooms()
             else:
+                print(f"⚠️ FAIL: RoomModel.update_room returned False for ID {room_id}")
                 self.show_error("Failed to update room status")
-                
-        except ValueError as e:
-            self.show_error(str(e))
+            
         except Exception as e:
             print(f"❌ Error updating status: {e}")
+            import traceback
+            traceback.print_exc()
             self.show_error(f"Failed to update status: {str(e)}")
     
     def on_clear_room_form(self):
         """Clear room form"""
+        print("🧹 CONTROLLER RECEIVED clear_form")
         if self.room_panel:
             self.room_panel._clear_form_fields()
     
@@ -617,7 +680,10 @@ class ReservationController(QObject):
     
     def on_book_service(self, booking_data: dict):
         """Book a service - create reservation service entry"""
+        print(f"🔴🔴🔴 RESERVATION CONTROLLER RECEIVED BOOKING: {booking_data}")
         try:
+            print(f"📝 Received booking data in controller: {booking_data}")
+            
             # Validate required fields
             if not booking_data.get('guest_id'):
                 self.show_error("Please select a guest.")
@@ -626,21 +692,35 @@ class ReservationController(QObject):
                 self.show_error("Please select a service.")
                 return
             
-            # Get the reservation_id for this guest
-            # Find active reservation for this guest (not checked out)
-            query = """
-                SELECT reservation_id 
+            guest_id = booking_data['guest_id']
+            
+            # FIRST: Check all reservations for this guest (including cancelled/checked out)
+            from config.database import DatabaseQuery
+            
+            all_reservations_query = """
+                SELECT reservation_id, status, check_in, check_out
+                FROM reservations 
+                WHERE guest_id = %s
+                ORDER BY created_at DESC
+            """
+            all_reservations = DatabaseQuery.fetch_all(all_reservations_query, (guest_id,))
+            print(f"🔍 ALL reservations for guest {guest_id}: {all_reservations}")
+            
+            # Find active reservation for this guest (not checked out or cancelled)
+            active_query = """
+                SELECT reservation_id, status
                 FROM reservations 
                 WHERE guest_id = %s 
                 AND status NOT IN ('CHECKED_OUT', 'CANCELLED')
                 ORDER BY created_at DESC
                 LIMIT 1
             """
-            from config.database import DatabaseQuery
-            result = DatabaseQuery.fetch_one(query, (booking_data['guest_id'],))
+            result = DatabaseQuery.fetch_one(active_query, (guest_id,))
+            
+            print(f"🔍 Active reservation for guest {guest_id}: {result}")
             
             if not result:
-                self.show_error("No active reservation found for this guest. Please create a reservation first.")
+                self.show_error(f"No active reservation found for this guest. Please create a reservation first in the Reservations tab.\n\nGuest has {len(all_reservations)} total reservation(s) but none are active.")
                 return
             
             reservation_id = result['reservation_id']
@@ -648,33 +728,103 @@ class ReservationController(QObject):
             duration = booking_data.get('duration', 60)
             scheduled_time = booking_data.get('scheduled_time')
             total = booking_data.get('total', 0)
+            unit_price = booking_data.get('unit_price', 0)
             
-            # Get service price
-            service = ServiceModel.find(int(service_id))
-            if not service:
-                self.show_error("Service not found.")
-                return
+            # Get service details if unit_price not provided
+            if unit_price == 0:
+                service = ServiceModel.find(int(service_id))
+                if not service:
+                    self.show_error("Service not found.")
+                    return
+                unit_price = float(service['price'])
             
-            unit_price = float(service['price'])
+            # If total is 0, calculate it
+            if total == 0:
+                total = unit_price
             
-            # Insert into reservation_services
-            insert_query = """
+            # Format scheduled_time properly with seconds
+            try:
+                if scheduled_time:
+                    if len(scheduled_time) == 16:  # YYYY-MM-DD HH:MM
+                        scheduled_time = f"{scheduled_time}:00"
+                    elif len(scheduled_time) == 10:  # YYYY-MM-DD
+                        scheduled_time = f"{scheduled_time} 00:00:00"
+                else:
+                    scheduled_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            except:
+                scheduled_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            print(f"📝 Inserting with: reservation_id={reservation_id}, service_id={service_id}, unit_price={unit_price}, total={total}, scheduled_time={scheduled_time}, duration={duration}")
+            
+            # Check if reservation_services table exists
+            check_table = """
+                SELECT COUNT(*) as count 
+                FROM information_schema.tables 
+                WHERE table_schema = 'hotel_ms' 
+                AND table_name = 'reservation_services'
+            """
+            table_exists = DatabaseQuery.fetch_one(check_table)
+            print(f"🔍 reservation_services table exists: {table_exists}")
+            
+            if not table_exists or table_exists.get('count', 0) == 0:
+                # Table doesn't exist, let's create it
+                create_table_sql = """
+                    CREATE TABLE IF NOT EXISTS reservation_services (
+                        res_service_id INT PRIMARY KEY AUTO_INCREMENT,
+                        reservation_id INT NOT NULL,
+                        service_id INT NOT NULL,
+                        quantity INT DEFAULT 1,
+                        unit_price DECIMAL(10,2) NOT NULL,
+                        total DECIMAL(10,2) NOT NULL,
+                        scheduled_at DATETIME,
+                        duration INT,
+                        status VARCHAR(20) DEFAULT 'PENDING',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        FOREIGN KEY (reservation_id) REFERENCES reservations(reservation_id) ON DELETE CASCADE,
+                        FOREIGN KEY (service_id) REFERENCES services(service_id) ON DELETE CASCADE
+                    )
+                """
+                from config.database import execute_query
+                execute_query(create_table_sql)
+                print("✅ Created reservation_services table")
+            
+            # Now try to insert
+            insert_sql = """
                 INSERT INTO reservation_services 
                 (reservation_id, service_id, quantity, unit_price, total, scheduled_at, duration, status)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, 'PENDING')
             """
             booking_id = DatabaseQuery.insert_and_get_id(
-                insert_query,
+                insert_sql,
                 (reservation_id, service_id, 1, unit_price, float(total), scheduled_time, duration)
             )
             
+            print(f"📝 Insert result: booking_id={booking_id}")
+            
             if booking_id:
                 # Update reservation total
-                ReservationModel.update_reservation_total(reservation_id)
+                update_total_query = """
+                    UPDATE reservations 
+                    SET total_price = (
+                        SELECT COALESCE(SUM(total), 0) 
+                        FROM reservation_services 
+                        WHERE reservation_id = %s AND status != 'CANCELLED'
+                    ) + (
+                        SELECT (DATEDIFF(check_out, check_in) * rm.price)
+                        FROM rooms rm 
+                        WHERE rm.room_id = reservations.room_id
+                    )
+                    WHERE reservation_id = %s
+                """
+                DatabaseQuery.execute_query(update_total_query, (reservation_id, reservation_id))
+                
                 self.show_message("Success", "Service booked successfully!")
                 self.refresh_services_panel()
+                print(f"✅ Service booking created with ID: {booking_id}")
             else:
-                self.show_error("Failed to book service")
+                self.show_error("Failed to book service - database insert failed")
+                print("❌ Failed to insert service booking - insert returned None")
             
         except Exception as e:
             print(f"❌ Error booking service: {e}")
@@ -701,12 +851,19 @@ class ReservationController(QObject):
             self.show_error("Failed to cancel booking")
     
     def on_calculate_service_total(self, service_id: str):
-        """Calculate total for selected service"""
+        """Calculate total for selected service based on duration"""
         try:
             service = ServiceModel.find(int(service_id))
             if service and self.services_panel:
-                total = float(service['price'])
-                self.services_panel.set_total(f"{total:,.2f}")
+                # Get duration from the panel
+                duration_text = self.services_panel.txt_duration.text()
+                if duration_text and duration_text.isdigit():
+                    duration = int(duration_text)
+                    unit_price = float(service['price'])
+                    total = unit_price
+                    self.services_panel.set_total(f"{total:,.2f}")
+                else:
+                    self.services_panel.set_total(f"{float(service['price']):,.2f}")
         except Exception as e:
             print(f"❌ Error calculating total: {e}")
     
@@ -760,3 +917,11 @@ class ReservationController(QObject):
         """Show error message"""
         if self.mainframe:
             QMessageBox.warning(self.mainframe, "Error", message)
+
+
+if __name__ == "__main__":
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication(sys.argv)
+    controller = ReservationController(user_role="Admin")
+    controller.show_view()
+    sys.exit(app.exec())

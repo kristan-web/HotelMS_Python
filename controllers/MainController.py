@@ -133,6 +133,16 @@ class MainController(QObject):
             if hasattr(self.service_controller, 'back_to_main_requested'):
                 self.service_controller.back_to_main_requested.connect(self.show_dashboard)
             
+            # Connect switch signals to update stacked widget
+            if hasattr(self.service_controller, 'switch_to_service_view'):
+                self.service_controller.switch_to_service_view.connect(self._show_service_widget)
+            if hasattr(self.service_controller, 'switch_to_deleted_view'):
+                self.service_controller.switch_to_deleted_view.connect(self._show_deleted_widget)
+            
+            # Ensure the service view has a proper size
+            if self.service_controller and self.service_controller.service_view:
+                self.service_controller.service_view.setMinimumSize(900, 650)
+            
             print("✅ Service controller initialized")
             
         except Exception as e:
@@ -153,27 +163,49 @@ class MainController(QObject):
             return self.service_controller.service_view
         return None
     
+    def _show_service_widget(self):
+        """Show the service view widget in stacked widget"""
+        if self.service_controller and self.service_controller.service_view:
+            # Add to stack if not already
+            if self.stacked_widget.indexOf(self.service_controller.service_view) == -1:
+                self.stacked_widget.addWidget(self.service_controller.service_view)
+            # Set current widget
+            self.stacked_widget.setCurrentWidget(self.service_controller.service_view)
+            self.stacked_widget.update()
+            print("✅ Stacked widget showing service view")
+    
+    def _show_deleted_widget(self):
+        """Show the deleted view widget in stacked widget"""
+        if self.service_controller and self.service_controller.deleted_view:
+            # Add to stack if not already
+            if self.stacked_widget.indexOf(self.service_controller.deleted_view) == -1:
+                self.stacked_widget.addWidget(self.service_controller.deleted_view)
+            # Set current widget
+            self.stacked_widget.setCurrentWidget(self.service_controller.deleted_view)
+            self.stacked_widget.update()
+            print("✅ Stacked widget showing deleted view")
+    
     def _ensure_reservation_in_stack(self):
         """Ensure reservation view is in stacked widget"""
         reservation_widget = self._get_reservation_widget()
-        if reservation_widget and self.stacked_widget.widget(self.RESERVATION_INDEX) != reservation_widget:
-            # Replace placeholder with actual widget
-            self.stacked_widget.insertWidget(self.RESERVATION_INDEX, reservation_widget)
+        if reservation_widget:
+            if self.stacked_widget.indexOf(reservation_widget) == -1:
+                self.stacked_widget.insertWidget(self.RESERVATION_INDEX, reservation_widget)
+                print("✅ Reservation view added to stack")
             # Remove placeholder if exists
             if self.stacked_widget.widget(self.RESERVATION_INDEX + 1) == self.reservation_placeholder:
                 self.stacked_widget.removeWidget(self.reservation_placeholder)
-            print("✅ Reservation view added to stack")
     
     def _ensure_service_in_stack(self):
         """Ensure service view is in stacked widget"""
         service_widget = self._get_service_widget()
-        if service_widget and self.stacked_widget.widget(self.SERVICE_INDEX) != service_widget:
-            # Replace placeholder with actual widget
-            self.stacked_widget.insertWidget(self.SERVICE_INDEX, service_widget)
+        if service_widget:
+            if self.stacked_widget.indexOf(service_widget) == -1:
+                self.stacked_widget.insertWidget(self.SERVICE_INDEX, service_widget)
+                print("✅ Service view added to stack")
             # Remove placeholder if exists
             if self.stacked_widget.widget(self.SERVICE_INDEX + 1) == self.service_placeholder:
                 self.stacked_widget.removeWidget(self.service_placeholder)
-            print("✅ Service view added to stack")
     
     def connect_signals(self):
         """Connect all signals between views and controller"""
@@ -192,7 +224,7 @@ class MainController(QObject):
         if self.dashboard_view:
             self.dashboard_view.logout_btn.clicked.connect(self.handle_logout)
             
-            # Connect navigation cards using proper signals (UPDATED)
+            # Connect navigation cards using proper signals
             self.dashboard_view.reservation_clicked.connect(self.navigate_to_reservation)
             self.dashboard_view.service_clicked.connect(self.navigate_to_service)
         
@@ -276,14 +308,30 @@ class MainController(QObject):
                 # Ensure reservation view is in stack
                 self._ensure_reservation_in_stack()
                 
-                # Show the view
-                self.stacked_widget.setCurrentIndex(self.RESERVATION_INDEX)
-                if self.parent_widget:
-                    self.parent_widget.setWindowTitle("Hotel Management System - Reservation Management")
+                # Get the actual reservation widget
+                reservation_widget = self._get_reservation_widget()
                 
-                # Refresh data
-                self.reservation_controller.refresh_all_data()
-                print("🖥️ Showing reservation management")
+                if reservation_widget:
+                    # Set minimum size
+                    reservation_widget.setMinimumSize(1000, 700)
+                    
+                    # Show the view
+                    self.stacked_widget.setCurrentIndex(self.RESERVATION_INDEX)
+                    
+                    # Force update
+                    self.stacked_widget.update()
+                    self.stacked_widget.repaint()
+                    
+                    if self.parent_widget:
+                        self.parent_widget.setWindowTitle("Hotel Management System - Reservation Management")
+                    
+                    # Refresh data
+                    self.reservation_controller.refresh_all_data()
+                    print("🖥️ Showing reservation management")
+                else:
+                    print("❌ Reservation widget is None")
+                    self.show_message("Error", "Reservation view is not available.")
+                    
             except Exception as e:
                 print(f"❌ Error showing reservation: {e}")
                 import traceback
@@ -296,16 +344,13 @@ class MainController(QObject):
         """Switch to service management view"""
         if self.service_controller:
             try:
-                # Ensure service view is in stack
-                self._ensure_service_in_stack()
+                # Ensure service view is visible in controller
+                self.service_controller.show_service_view()
+                self._show_service_widget()
                 
-                # Show the view
-                self.stacked_widget.setCurrentIndex(self.SERVICE_INDEX)
                 if self.parent_widget:
                     self.parent_widget.setWindowTitle("Hotel Management System - Service Management")
                 
-                # Refresh service data
-                self.service_controller.refresh_service_view()
                 print("🖥️ Showing service management")
             except Exception as e:
                 print(f"❌ Error showing service: {e}")
@@ -364,22 +409,26 @@ class MainController(QObject):
             # Get reservation statistics
             reservation_stats = ReservationModel.get_stats()
             total_reservations = reservation_stats.get('total_reservations', 0)
-            self.dashboard_view.set_total_reservations(total_reservations)
+            if self.dashboard_view:
+                self.dashboard_view.set_total_reservations(total_reservations)
             print(f"📊 Total reservations: {total_reservations}")
             
             # Get active services count
             active_services = ServiceModel.count_active_services()
-            self.dashboard_view.set_available_services(active_services)
+            if self.dashboard_view:
+                self.dashboard_view.set_available_services(active_services)
             print(f"📊 Active services: {active_services}")
             
             # Get total staff count
             total_staff = UserModel.count_staff()
-            self.dashboard_view.set_total_staff(total_staff)
+            if self.dashboard_view:
+                self.dashboard_view.set_total_staff(total_staff)
             print(f"📊 Total staff: {total_staff}")
             
             # Get total revenue from completed reservations
             total_revenue = ReservationModel.get_total_revenue()
-            self.dashboard_view.set_total_revenue(int(total_revenue))
+            if self.dashboard_view:
+                self.dashboard_view.set_total_revenue(int(total_revenue))
             print(f"📊 Total revenue: ₱{total_revenue:,.2f}")
             
         except Exception as e:
@@ -387,10 +436,11 @@ class MainController(QObject):
             import traceback
             traceback.print_exc()
             # Set default values on error
-            self.dashboard_view.set_total_reservations(0)
-            self.dashboard_view.set_available_services(0)
-            self.dashboard_view.set_total_staff(0)
-            self.dashboard_view.set_total_revenue(0)
+            if self.dashboard_view:
+                self.dashboard_view.set_total_reservations(0)
+                self.dashboard_view.set_available_services(0)
+                self.dashboard_view.set_total_staff(0)
+                self.dashboard_view.set_total_revenue(0)
     
     def show_message(self, title: str, message: str):
         """Show a message box"""

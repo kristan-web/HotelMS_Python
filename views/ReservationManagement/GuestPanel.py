@@ -18,7 +18,7 @@ class GuestPanelView(QWidget):
     # Signal definitions for controller communication
     add_guest_requested = pyqtSignal(dict)      # guest data dict
     edit_guest_requested = pyqtSignal(dict)     # guest data dict with id
-    delete_guest_requested = pyqtSignal(str)    # guest_id - ADDED
+    delete_guest_requested = pyqtSignal(str)    # guest_id
     refresh_requested = pyqtSignal()
     clear_form_requested = pyqtSignal()
     
@@ -48,7 +48,7 @@ class GuestPanelView(QWidget):
     def _connect_signals(self):
         """Connect internal signals"""
         self.add_btn.clicked.connect(self.handle_add_guest)
-        self.delete_btn.clicked.connect(self.handle_delete_guest)  # ADDED
+        self.delete_btn.clicked.connect(self.handle_delete_guest)
         self.refresh_btn.clicked.connect(self.handle_refresh)
         self.clear_btn.clicked.connect(self.handle_clear_form)
         self.table.itemSelectionChanged.connect(self.fill_form_from_selection)
@@ -176,7 +176,7 @@ class GuestPanelView(QWidget):
         layout.addWidget(self.phone_input)
         layout.addSpacing(12)
 
-        # Buttons row (Add, Update, Clear, Delete)
+        # Buttons row (Add, Delete, Clear)
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
 
@@ -194,7 +194,7 @@ class GuestPanelView(QWidget):
         """)
         self.add_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
 
-        self.delete_btn = QPushButton("Delete")  # ADDED
+        self.delete_btn = QPushButton("Delete")
         self.delete_btn.setFont(QFont("Segoe UI Semilight", 11, QFont.Weight.Bold))
         self.delete_btn.setFixedHeight(35)
         self.delete_btn.setStyleSheet("""
@@ -223,7 +223,7 @@ class GuestPanelView(QWidget):
         self.clear_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
 
         btn_row.addWidget(self.add_btn)
-        btn_row.addWidget(self.delete_btn)  # ADDED
+        btn_row.addWidget(self.delete_btn)
         btn_row.addWidget(self.clear_btn)
         layout.addLayout(btn_row)
         layout.addStretch()
@@ -279,6 +279,8 @@ class GuestPanelView(QWidget):
         self.table.setFont(QFont("Segoe UI Semilight", 11))
         self.table.setRowHeight(0, 40)
         self.table.verticalHeader().setDefaultSectionSize(40)
+        self.table.verticalHeader().setVisible(True)
+        self.table.verticalHeader().setStyleSheet("background-color: #412B4E !important;")
         self.table.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(
@@ -313,6 +315,13 @@ class GuestPanelView(QWidget):
                 font-size: 12px;
                 padding: 6px;
                 border: none;
+                border-right: 1px solid #2F2038;
+                border-bottom: 1px solid #2F2038;
+            }
+            QTableCornerButton::section {
+                background-color: #412B4E;
+                border: none;
+                border-right: 1px solid #2F2038;
                 border-bottom: 1px solid #2F2038;
             }
             QScrollBar:vertical {
@@ -325,6 +334,8 @@ class GuestPanelView(QWidget):
                 border-radius: 4px;
             }
         """)
+        
+        
 
         layout.addWidget(self.table)
         return table_outer
@@ -347,7 +358,7 @@ class GuestPanelView(QWidget):
         else:
             self.add_guest_requested.emit(guest_data)
 
-    def handle_delete_guest(self):  # ADDED
+    def handle_delete_guest(self):
         """Emit delete_guest signal for selected guest"""
         row = self.get_selected_row()
         if row >= 0:
@@ -454,7 +465,7 @@ class GuestPanelView(QWidget):
                                       Qt.AlignmentFlag.AlignLeft)
                 self.table.setItem(row, col, item)
 
-    def confirm_delete(self, name: str) -> bool:  # ADDED
+    def confirm_delete(self, name: str) -> bool:
         """Show confirmation dialog for delete"""
         reply = QMessageBox.question(
             self, "Confirm Delete",

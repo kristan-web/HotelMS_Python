@@ -111,7 +111,7 @@ class AdminDashboardView(QWidget):
         root_layout.addWidget(sep)
         root_layout.addSpacing(10)
 
-        # ── NAV CARDS ROW (2 cards - Reservation and Service Management) ───
+        # ── NAV CARDS ROW (SHRUNK VERSION) ─────────────────────────────────
         nav_row = QWidget()
         nav_row.setObjectName("nav_row")
         nav_row.setStyleSheet("QWidget#nav_row { background-color: #2F2038; border: none; }")
@@ -150,16 +150,17 @@ class AdminDashboardView(QWidget):
     def _build_header(self):
         header_outer = QWidget()
         header_outer.setObjectName("header_outer")
+        header_outer.setFixedHeight(60)  # ← ADD THIS
         header_outer.setStyleSheet(
-            "QWidget#header_outer { background-color: #A797A5; border: none; }")
+        "QWidget#header_outer { background-color: #A797A5; border: none; }")
 
         header_inner = QWidget()
         header_inner.setObjectName("header_inner")
         header_inner.setStyleSheet(
-            "QWidget#header_inner { background-color: #FFE0E3; border: none; }")
+        "QWidget#header_inner { background-color: #FFE0E3; border: none; }")
 
         inner_layout = QHBoxLayout(header_inner)
-        inner_layout.setContentsMargins(18, 10, 20, 10)
+        inner_layout.setContentsMargins(18, 6, 20, 6)  # ← reduce vertical padding
         inner_layout.setSpacing(6)
 
         # Logo
@@ -252,17 +253,17 @@ class AdminDashboardView(QWidget):
         lbl.setStyleSheet("color: #F2F2F2; background: transparent;")
         return lbl
 
-    # ── NAV CARD (2-card row) ────────────────────────────────────────────────
+    # ── SHRUNK NAV CARD (just reduced height, everything else same) ────────
     def _build_nav_card(self, color: str, line1: str,
                         line2: str, icon_label: QLabel):
         card = QWidget()
         card.setStyleSheet(f"background-color: {color}; border-radius: 6px;")
-        card.setFixedHeight(110)
+        card.setFixedHeight(75)  # Shrunk from 110 to 75
         card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         card.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
 
         layout = QHBoxLayout(card)
-        layout.setContentsMargins(13, 28, 13, 28)
+        layout.setContentsMargins(13, 13, 13, 13)  # Slightly reduced vertical padding
         layout.setSpacing(6)
 
         layout.addWidget(icon_label)

@@ -14,12 +14,14 @@ class RoomPanel(QWidget):
     # Signal definitions for controller communication
     add_room_requested = pyqtSignal(dict)
     edit_room_requested = pyqtSignal(dict)
+    delete_room_requested = pyqtSignal(str)  # <-- ADD THIS LINE
     update_status_requested = pyqtSignal(str, str)
     refresh_requested = pyqtSignal()
     clear_form_requested = pyqtSignal()
     
     def __init__(self): 
         super().__init__()
+        print(f"🟢 RoomPanel.__init__ called - instance id: {id(self)}")
         self.current_room_id = None
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.static_rooms = []
@@ -184,6 +186,7 @@ class RoomPanel(QWidget):
         return b
 
     def handle_add_room(self):
+        print("🔵 handle_add_room called")
         if not self.room_number_field.text():
             self.show_error("Room number is required.")
             return
@@ -207,21 +210,31 @@ class RoomPanel(QWidget):
             'description': self.description_field.text()
         }
         
+        print(f"📝 Room data: {room_data}")
+        
         if self.current_room_id:
             room_data['id'] = self.current_room_id
+            print(f"✏️ Emitting edit_room_requested with id: {self.current_room_id}")
             self.edit_room_requested.emit(room_data)
         else:
+            print(f"➕ Emitting add_room_requested")
             self.add_room_requested.emit(room_data)
 
     def handle_set_status(self):
         row = self.get_selected_row()
+        print(f"🔍 handle_set_status - row selected: {row}")
+        print(f"🔍 RoomPanel instance id: {id(self)}")
         if row >= 0:
             room_id_item = self.table.item(row, 0)
             if room_id_item:
                 room_id = room_id_item.text().strip()
+                print(f"🔍 Selected room ID: '{room_id}'")
                 if room_id:
                     new_status = self.room_status_combo.currentText()
+                    print(f"🔍 New status: '{new_status}'")
+                    print(f"🔍 Emitting update_status_requested signal...")
                     self.update_status_requested.emit(room_id, new_status)
+                    print(f"🔍 Signal emitted")
                 else:
                     self.show_error("Invalid room ID.")
             else:
@@ -230,12 +243,16 @@ class RoomPanel(QWidget):
             self.show_error("Please select a room to update status.")
 
     def handle_refresh(self):
+        print("🔄 handle_refresh called")
         self.refresh_requested.emit()
 
     def handle_clear_form(self):
+        print("🧹 handle_clear_form called")
         self.current_room_id = None
         self.btn_add.setText("Add Room")
         self._clear_form_fields()
+        self.clear_form_requested.emit()
+        print("✅ clear_form_requested emitted")
 
     def fill_form_from_table(self):
         row = self.get_selected_row()
@@ -243,6 +260,7 @@ class RoomPanel(QWidget):
             room_id_item = self.table.item(row, 0)
             if room_id_item:
                 self.current_room_id = room_id_item.text().strip()
+                print(f"📋 Selected room for edit, ID: {self.current_room_id}")
                 
                 room_number_item = self.table.item(row, 1)
                 self.room_number_field.setText(room_number_item.text() if room_number_item else "")
@@ -269,6 +287,7 @@ class RoomPanel(QWidget):
                 self.description_field.setText(desc_item.text() if desc_item else "")
                 
                 self.btn_add.setText("Update Room")
+                print(f"📝 Form filled for editing room: {self.current_room_id}")
 
     def _clear_form_fields(self):
         self.room_number_field.clear()
@@ -282,6 +301,7 @@ class RoomPanel(QWidget):
         self.table.clearSelection()
 
     def load_rooms(self, rooms: list):
+        print(f"📊 load_rooms called with {len(rooms)} rooms")
         self.static_rooms = rooms
         self.table.setRowCount(0)
         
