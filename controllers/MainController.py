@@ -253,13 +253,19 @@ class MainController(QObject):
     def on_login_success(self, user_data: dict):
         """Called when login is successful"""
         self.current_user = user_data
-        print(f"✅ User logged in: {user_data['first_name']} {user_data['last_name']}")
-        
+        full_name = f"{user_data['first_name']} {user_data['last_name']}"
+        print(f"✅ User logged in: {full_name}")
+
+        QMessageBox.information(
+            self.parent_widget,
+            "Login Successful",
+            f"Welcome back, {full_name}! 👋"
+        )
+
         if self.dashboard_view:
-            full_name = f"{user_data['first_name']} {user_data['last_name']}"
             self.dashboard_view.set_session_label(full_name)
             self.load_dashboard_stats()
-        
+
         self.show_dashboard()
     
     def on_login_failed(self, error_msg: str):

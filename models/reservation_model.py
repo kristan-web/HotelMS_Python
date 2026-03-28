@@ -43,7 +43,7 @@ class ReservationModel(BaseModel):
                 FROM reservations r
                 JOIN guests g ON r.guest_id = g.guest_id
                 JOIN rooms rm ON r.room_id = rm.room_id
-                WHERE r.status = %s
+                WHERE r.status = %s AND r.is_deleted = FALSE
                 ORDER BY r.created_at DESC
             """
             return DatabaseQuery.fetch_all(query, (status_filter,))
@@ -63,6 +63,7 @@ class ReservationModel(BaseModel):
             FROM reservations r
             JOIN guests g ON r.guest_id = g.guest_id
             JOIN rooms rm ON r.room_id = rm.room_id
+            WHERE r.is_deleted = FALSE
             ORDER BY r.created_at DESC
         """
         return DatabaseQuery.fetch_all(query)
@@ -355,6 +356,23 @@ class ReservationModel(BaseModel):
         
         return cls.update(reservation_id, {'status': 'CANCELLED'})
     
+    @classmethod
+    def delete_reservation(cls, reservation_id: int) -> bool:
+        """Soft-delete a reservation (only CANCELLED or CHECKED_OUT allowed)"""
+        reservation = cls.find(reservation_id)
+        if not reservation:
+            raise ValueError("Reservation not found")
+
+        if reservation['status'] not in ['CANCELLED', 'CHECKED_OUT']:
+            raise ValueError(f"Cannot delete reservation with status: {reservation['status']}. Only CANCELLED or CHECKED_OUT reservations can be deleted.")
+
+        query = """
+            UPDATE reservations
+            SET is_deleted = TRUE
+            WHERE reservation_id = %s
+        """
+        return DatabaseQuery.execute_query(query, (reservation_id,))
+
     @classmethod
     def is_room_available(cls, room_id: int, check_in: str, check_out: str, exclude_id: int = None) -> bool:
         """Check if room is available for given dates"""

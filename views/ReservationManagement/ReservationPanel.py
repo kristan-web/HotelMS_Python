@@ -26,6 +26,7 @@ class ReservationPanel(QWidget):
     check_in_requested = pyqtSignal(str)  # reservation_id
     check_out_requested = pyqtSignal(str)  # reservation_id
     cancel_reservation_requested = pyqtSignal(str)  # reservation_id - ADDED
+    delete_reservation_requested = pyqtSignal(str)  # reservation_id
     refresh_requested = pyqtSignal()
     filter_requested = pyqtSignal(str)  # status filter
     room_selected_requested = pyqtSignal(str)  # room_id - for total calculation
@@ -60,6 +61,7 @@ class ReservationPanel(QWidget):
         self.btn_check_in.clicked.connect(self.handle_check_in)
         self.btn_check_out.clicked.connect(self.handle_check_out)
         self.btn_cancel.clicked.connect(self.handle_cancel_reservation)  # ADDED
+        self.btn_delete.clicked.connect(self.handle_delete_reservation)
         self.btn_refresh.clicked.connect(self.handle_refresh)
         self.status_filter.currentTextChanged.connect(self.handle_filter)
         self.room_combo.currentIndexChanged.connect(self.handle_room_selected)
@@ -237,11 +239,13 @@ class ReservationPanel(QWidget):
         self.btn_check_in = self._action_button("Check In", "#412B4E")
         self.btn_check_out = self._action_button("Check Out", "#412B4E")
         self.btn_cancel = self._action_button("Cancel", "#BE3455")  # ADDED
+        self.btn_delete = self._action_button("Delete", "#7B1C2E")
         self.btn_refresh = self._action_button("Refresh", "#412B4E")
 
         btn_row.addWidget(self.btn_check_in)
         btn_row.addWidget(self.btn_check_out)
         btn_row.addWidget(self.btn_cancel)  # ADDED
+        btn_row.addWidget(self.btn_delete)
         btn_row.addWidget(self.btn_refresh)
         btn_row.addStretch()
         
@@ -415,6 +419,27 @@ class ReservationPanel(QWidget):
                             self.cancel_reservation_requested.emit(reservation_id)
                     else:
                         self.show_error(f"Cannot cancel reservation with status: {status}")
+                else:
+                    self.show_error("Invalid reservation ID.")
+            else:
+                self.show_error("Could not get reservation ID.")
+        else:
+            self.show_error("Please select a reservation.")
+
+    def handle_delete_reservation(self):
+        """Handle delete reservation button click - only allowed for CANCELLED or CHECKED_OUT"""
+        row = self.table.currentRow()
+        if row >= 0:
+            reservation_id_item = self.table.item(row, 0)
+            if reservation_id_item:
+                reservation_id = reservation_id_item.text().strip()
+                if reservation_id:
+                    status = self.get_table_value(row, 7)
+                    if status in ["CANCELLED", "CHECKED_OUT"]:
+                        if self.confirm_action("Delete Reservation", "This will permanently delete the reservation. Are you sure?"):
+                            self.delete_reservation_requested.emit(reservation_id)
+                    else:
+                        self.show_error(f"Cannot delete reservation with status: {status}. Only CANCELLED or CHECKED_OUT reservations can be deleted.")
                 else:
                     self.show_error("Invalid reservation ID.")
             else:

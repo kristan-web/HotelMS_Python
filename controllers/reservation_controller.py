@@ -109,6 +109,7 @@ class ReservationController(QObject):
                 self.reservation_panel.check_in_requested.connect(self.on_check_in)
                 self.reservation_panel.check_out_requested.connect(self.on_check_out)
                 self.reservation_panel.cancel_reservation_requested.connect(self.on_cancel_reservation)
+                self.reservation_panel.delete_reservation_requested.connect(self.on_delete_reservation)
                 self.reservation_panel.refresh_requested.connect(self.refresh_reservations)
                 self.reservation_panel.filter_requested.connect(self.on_filter_reservations)
                 self.reservation_panel.room_selected_requested.connect(self.on_room_selected)
@@ -162,6 +163,7 @@ class ReservationController(QObject):
         self.refresh_rooms()
         self.refresh_services_panel()
         self.load_guest_combo()
+        self.load_all_rooms_combo()
         self.load_service_combo()
     
     def refresh_reservations(self):
@@ -261,6 +263,24 @@ class ReservationController(QObject):
         """Load available rooms into reservation panel combo box"""
         if self.reservation_panel:
             self.reservation_panel.load_rooms(rooms)
+
+    def load_all_rooms_combo(self):
+        """Load all available rooms into reservation panel combo box on startup"""
+        try:
+            rooms = RoomModel.get_all_active()
+            if self.reservation_panel:
+                formatted_rooms = []
+                for r in rooms:
+                    formatted_rooms.append({
+                        'id': r.get('id') or r.get('room_id'),
+                        'room_number': r.get('room_number'),
+                        'room_type': r.get('room_type'),
+                        'price': r.get('price')
+                    })
+                self.reservation_panel.load_rooms(formatted_rooms)
+                print(f"📊 Loaded {len(formatted_rooms)} rooms into combo")
+        except Exception as e:
+            print(f"❌ Error loading room combo: {e}")
     
     def load_service_combo(self):
         """Load services into services panel combo box"""
@@ -458,6 +478,28 @@ class ReservationController(QObject):
         except Exception as e:
             print(f"❌ Error cancelling: {e}")
             self.show_error("Failed to cancel reservation")
+
+    def on_delete_reservation(self, reservation_id: str):
+        """Permanently delete a reservation (only CANCELLED or CHECKED_OUT)"""
+        try:
+            if not self._confirm_action("Delete Reservation",
+                                        "This will permanently delete the reservation. Are you sure?"):
+                return
+
+            success = ReservationModel.delete_reservation(int(reservation_id))
+
+            if success:
+                self.show_message("Success", "Reservation deleted successfully!")
+                self.refresh_reservations()
+                self.refresh_rooms()
+            else:
+                self.show_error("Failed to delete reservation")
+
+        except ValueError as e:
+            self.show_error(str(e))
+        except Exception as e:
+            print(f"❌ Error deleting reservation: {e}")
+            self.show_error("Failed to delete reservation")
     
     def on_filter_reservations(self, status: str):
         """Filter reservations by status"""
@@ -593,6 +635,7 @@ class ReservationController(QObject):
             if room_id:
                 self.show_message("Success", f"Room '{room_data['room_number']}' added successfully!")
                 self.refresh_rooms()
+                self.load_all_rooms_combo()
             else:
                 self.show_error("Failed to add room")
                 
@@ -619,6 +662,7 @@ class ReservationController(QObject):
             if success:
                 self.show_message("Success", f"Room '{room_data['room_number']}' updated successfully!")
                 self.refresh_rooms()
+                self.load_all_rooms_combo()
             else:
                 self.show_error("Failed to update room")
                 
@@ -639,6 +683,7 @@ class ReservationController(QObject):
             if success:
                 self.show_message("Success", "Room deleted successfully!")
                 self.refresh_rooms()
+                self.load_all_rooms_combo()
             else:
                 self.show_error("Failed to delete room")
                     
@@ -660,6 +705,7 @@ class ReservationController(QObject):
                 print(f"✅ SUCCESS: Room {room_id} is now {new_status}")
                 self.show_message("Success", f"Room status updated to '{new_status}'!")
                 self.refresh_rooms()
+                self.load_all_rooms_combo()
             else:
                 print(f"⚠️ FAIL: RoomModel.update_room returned False for ID {room_id}")
                 self.show_error("Failed to update room status")
